@@ -60,7 +60,10 @@
       }"
       v-html="style.isEditing ? showBulls(entry) : showCode(entry.code)"
     ></div>
-    <div class="issuer account">{{ entry.account }}</div>
+    <div class="issuer account">
+      {{ entry.account }}
+    </div>
+    <div class="issuer account">静态密码：{{ staticPassword }}</div>
     <div class="issuerEdit">
       <input
         v-bind:placeholder="i18n.accountName"
@@ -105,6 +108,7 @@ const computedPrototype = [
     "sectorOffset",
     "second",
     "encryption",
+    "staticPassword",
   ]),
   mapState("style", ["style"]),
   mapState("menu", ["theme"]),
@@ -233,7 +237,7 @@ export default Vue.extend({
             }
 
             const lastActiveElement = document.activeElement as HTMLElement;
-            codeClipboard.value = entry.code;
+            codeClipboard.value = `${this.$store.state.accounts.staticPassword}${entry.code}`;
             codeClipboard.focus();
             codeClipboard.select();
             document.execCommand("Copy");

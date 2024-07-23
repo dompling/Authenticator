@@ -34,6 +34,7 @@ export class Accounts implements Module {
         key: await BrowserStorage.getKey(),
         wrongPassword: false,
         initComplete: false,
+        staticPassword: UserSettings.items.staticPassword,
       },
       getters: {
         shouldFilter(
@@ -70,6 +71,11 @@ export class Accounts implements Module {
         },
         showSearch(state: AccountsState) {
           state.showSearch = true;
+        },
+        setStaticPasswrod(state: AccountsState, staticPassword: string) {
+          state.staticPassword = staticPassword;
+          UserSettings.items.staticPassword = staticPassword;
+          UserSettings.commitItems();
         },
         updateCodes(state: AccountsState) {
           let second = new Date().getSeconds();

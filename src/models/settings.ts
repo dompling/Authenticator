@@ -31,6 +31,7 @@ interface UserSettingsData {
   smartFilter?: boolean;
   theme?: string;
   zoom?: number;
+  staticPassword?: string;
 }
 
 // Maybe we can have a better way to define this

@@ -74,6 +74,7 @@ interface AccountsState {
   key: { enc: string; hash: string } | null;
   wrongPassword: boolean;
   initComplete: boolean;
+  staticPassword?: string;
 }
 
 interface NotificationState {

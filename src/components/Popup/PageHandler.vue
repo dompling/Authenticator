@@ -18,6 +18,7 @@ import IconXCircle from "../../../svg/x-circle.svg";
 import AddAccountPage from "./AddAccountPage.vue";
 import AddMethodPage from "./AddMethodPage.vue";
 import SetPasswordPage from "./SetPasswordPage.vue";
+import SetStaticPasswordPage from "./SetStaticPasswordPage.vue";
 import EnterPasswordPage from "./EnterPasswordPage.vue";
 import BackupPage from "./BackupPage.vue";
 import DropboxPage from "./DropboxPage.vue";
@@ -43,6 +44,7 @@ export default Vue.extend({
     AddAccountPage,
     AddMethodPage,
     SetPasswordPage,
+    SetStaticPasswordPage,
     EnterPasswordPage,
     BackupPage,
     DropboxPage,
