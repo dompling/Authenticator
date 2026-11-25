@@ -302,12 +302,52 @@ export class EntryStorage {
     }
   }
 
+  // Convert the old global value into independent per-account settings.
+  // Never overwrite a configured or explicitly cleared prefix.
+  static async migrateLegacyCopyPrefixes(
+    entries: OTPEntry[],
+    encryption: Encryption
+  ) {
+    const legacy = UserSettings.items.staticPassword;
+    if (!legacy) {
+      return;
+    }
+    const updates: { [hash: string]: OTPStorage } = {};
+    for (const entry of entries) {
+      if (
+        entry.secret &&
+        entry.copyPrefix === undefined &&
+        entry.encCopyPrefix === undefined &&
+        (!entry.encSecret || encryption.getEncryptionStatus())
+      ) {
+        entry.setCopyPrefix(legacy, encryption);
+        updates[entry.hash] = this.getOTPStorageFromEntry(entry);
+      }
+    }
+    if (Object.keys(updates).length) {
+      await BrowserStorage.set(updates);
+    }
+  }
+
   static async backupGetExport(encryption: Encryption, encrypted?: boolean) {
     const _data = await BrowserStorage.get();
     for (const hash of Object.keys(_data)) {
       if (hash === "UserSettings" || !this.isValidEntry(_data, hash)) {
         delete _data[hash];
         continue;
+      }
+      // Include an unmigrated legacy prefix even if a scheduled backup
+      // runs before the popup has opened and migrated the stored entry.
+      const legacy = UserSettings.items.staticPassword;
+      if (legacy && _data[hash].copyPrefix === undefined) {
+        if (!_data[hash].encrypted) {
+          _data[hash].copyPrefix = legacy;
+        } else if (
+          encryption.getEncryptionStatus() &&
+          encryption.getDecryptedSecret(_data[hash])
+        ) {
+          _data[hash].copyPrefix = encryption.getEncryptedString(legacy);
+        }
       }
       // remove unnecessary fields
       if (
@@ -388,11 +428,9 @@ export class EntryStorage {
       data[hash].hash = data[hash].hash || hash;
       data[hash].account = data[hash].account || "";
       const prefix = data[hash].copyPrefix;
-      if (typeof prefix === "string") {
-        data[hash].copyPrefix = encryption.getEncryptedString(prefix);
-      } else {
-        delete data[hash].copyPrefix;
-      }
+      data[hash].copyPrefix = encryption.getEncryptedString(
+        typeof prefix === "string" ? prefix : ""
+      );
       data[hash].encrypted = encryption.getEncryptionStatus();
       data[hash].index = data[hash].index || 0;
       data[hash].issuer = data[hash].issuer || "";

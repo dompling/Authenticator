@@ -30,6 +30,11 @@ jobs:
         run: node --test scripts/test-copy-prefix.cjs
       - name: Build Chrome extension
         run: npm run chrome
+      - name: Configure Chrome identity and Google Drive
+        env:
+          CHROME_GOOGLE_CLIENT_ID: ${{ vars.CHROME_GOOGLE_CLIENT_ID }}
+          CHROME_STABLE_ID: ${{ vars.CHROME_STABLE_ID }}
+        run: node scripts/configure-chrome.cjs
       - name: Validate and package
         run: |
           test -f chrome/manifest.json

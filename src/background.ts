@@ -237,7 +237,12 @@ function getBackupToken(service: string) {
         scopes: ["https://www.googleapis.com/auth/drive.file"],
       },
       (value) => {
-        if (!value) {
+        const error = chrome.runtime.lastError;
+        if (error || !value) {
+          chrome.runtime.sendMessage({
+            action: "driveautherror",
+            value: error?.message || "Google authorization failed",
+          });
           return false;
         }
         UserSettings.items.driveToken = value;

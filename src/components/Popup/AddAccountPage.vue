@@ -128,7 +128,7 @@ export default Vue.extend({
           index: 0,
           issuer: this.newAccount.issuer,
           account: this.newAccount.account,
-          copyPrefix: this.newAccount.copyPrefix || undefined,
+          copyPrefix: this.newAccount.copyPrefix,
           encrypted: false,
           secret: this.newAccount.secret,
           counter: 0,

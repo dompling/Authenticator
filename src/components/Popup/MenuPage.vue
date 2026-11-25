@@ -25,9 +25,6 @@
         <p v-bind:title="i18n.backup" v-on:click="showInfo('BackupPage')">
           <span><IconExchange /></span>{{ i18n.backup }}
         </p>
-        <p v-on:click="showInfo('SetStaticPasswordPage')">
-          <span><IconLock /></span>静态密码
-        </p>
         <p
           v-bind:title="i18n.security"
           v-on:click="showInfo('SetPasswordPage')"

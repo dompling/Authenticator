@@ -1,7 +1,7 @@
 ﻿{
     "copy_prefix": {
-        "message": "Copy prefix (optional)",
-        "description": "Optional per-account prefix for copying the OTP code."
+        "message": "Static password / copy prefix (optional)",
+        "description": "Per-account static password and backup settings."
     },
     "extName": {
         "message": "Authenticator",
@@ -518,5 +518,33 @@
     },
     "permission_unknown_permission": {
         "message": "Unknown permission. If see this message, please send a bug report."
+    },
+    "copy_prefix_set": {
+        "message": "Set static password",
+        "description": "Per-account static password and backup settings."
+    },
+    "copy_prefix_edit": {
+        "message": "Edit static password ••••",
+        "description": "Per-account static password and backup settings."
+    },
+    "copy_prefix_help": {
+        "message": "This password belongs only to this account and is copied immediately before its current code. Clear it to copy the code alone.",
+        "description": "Per-account static password and backup settings."
+    },
+    "backup_full_json": {
+        "message": "Download full JSON backup",
+        "description": "Per-account static password and backup settings."
+    },
+    "backup_standard_otp": {
+        "message": "Export standard OTP text (without static passwords)",
+        "description": "Per-account static password and backup settings."
+    },
+    "drive_not_configured": {
+        "message": "Google Drive authorization is not configured for this build. Configure the Chrome OAuth client and rebuild using the repository instructions.",
+        "description": "Per-account static password and backup settings."
+    },
+    "drive_require_password": {
+        "message": "Set an encryption password in Security before uploading an encrypted backup to Google Drive.",
+        "description": "Per-account static password and backup settings."
     }
 }

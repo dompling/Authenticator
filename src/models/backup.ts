@@ -352,14 +352,18 @@ export class Drive implements BackupProvider {
 
   async upload(encryption: Encryption) {
     await UserSettings.updateItems();
-    if (UserSettings.items.driveEncrypted === undefined) {
-      UserSettings.items.driveEncrypted = true;
-      UserSettings.commitItems();
+    // OTP secrets and static passwords must never be uploaded in plaintext.
+    if (!encryption.getEncryptionStatus()) {
+      return false;
     }
-    const exportData = await EntryStorage.backupGetExport(
-      encryption,
-      UserSettings.items.driveEncrypted === true
-    );
+    const exportData = await EntryStorage.backupGetExport(encryption, true);
+    if (
+      Object.keys(exportData).some(
+        (hash) => hash !== "key" && !exportData[hash].encrypted
+      )
+    ) {
+      return false;
+    }
     const backup = JSON.stringify(exportData, null, 2);
 
     const token = await this.getToken();

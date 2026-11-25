@@ -8,37 +8,34 @@
       <div class="text">
         {{ i18n.backup_file_info }}
       </div>
-      <div class="text warning" v-if="unsupportedAccounts">
-        {{ i18n.otp_unsupported_warn }}
-      </div>
       <div class="text warning" v-if="currentlyEncrypted">
         {{ i18n.phrase_incorrect_export }}
       </div>
       <a-button-link
+        download="authenticator.json"
+        :href="exportFile"
+        v-if="isDataLinkSupported"
+        >{{ i18n.backup_full_json }}</a-button-link
+      >
+      <button
+        v-on:click="downloadBackUpExportFile()"
+        v-if="!isDataLinkSupported"
+        class="button"
+      >
+        {{ i18n.backup_full_json }}
+      </button>
+      <a-button-link
         download="authenticator.txt"
         :href="exportOneLineOtpAuthFile"
         v-if="!unsupportedAccounts && isDataLinkSupported"
-        >{{ i18n.download_backup }}</a-button-link
+        >{{ i18n.backup_standard_otp }}</a-button-link
       >
       <button
         v-on:click="downloadBackUpOneLineOtpAuthFile()"
         v-if="!unsupportedAccounts && !isDataLinkSupported"
         class="button"
       >
-        {{ i18n.download_backup }}
-      </button>
-      <a-button-link
-        download="authenticator.json"
-        :href="exportFile"
-        v-if="unsupportedAccounts && isDataLinkSupported"
-        >{{ i18n.download_backup }}</a-button-link
-      >
-      <button
-        v-on:click="downloadBackUpExportFile()"
-        v-if="unsupportedAccounts && !isDataLinkSupported"
-        class="button"
-      >
-        {{ i18n.download_backup }}
+        {{ i18n.backup_standard_otp }}
       </button>
       <a-button-link
         download="authenticator.json"
@@ -177,8 +174,7 @@ function hasUnsupportedAccounts(exportData: { [h: string]: OTPStorage }) {
   for (const entry of Object.keys(exportData)) {
     if (
       exportData[entry].type === "battle" ||
-      exportData[entry].type === "steam" ||
-      exportData[entry].copyPrefix !== undefined
+      exportData[entry].type === "steam"
     ) {
       return true;
     }

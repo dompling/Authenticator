@@ -63,28 +63,21 @@
     <div class="issuer account">
       {{ entry.account }}
     </div>
-    <div class="issuer account" v-if="effectiveCopyPrefix(entry)">
-      {{ i18n.copy_prefix }}: ••••
-    </div>
+    <button
+      v-if="entry.secret !== null"
+      type="button"
+      class="prefixAction"
+      v-on:click.stop="editCopyPrefix(entry)"
+      v-on:keydown.stop
+    >
+      {{ entry.copyPrefix ? i18n.copy_prefix_edit : i18n.copy_prefix_set }}
+    </button>
     <div class="issuerEdit">
       <input
         v-bind:placeholder="i18n.accountName"
         type="text"
         v-model="entry.account"
         v-on:change="entry.update(encryption)"
-      />
-    </div>
-    <div class="issuerEdit">
-      <input
-        v-bind:placeholder="i18n.copy_prefix"
-        v-bind:aria-label="i18n.copy_prefix"
-        v-bind:value="effectiveCopyPrefix(entry)"
-        v-bind:disabled="entry.secret === null"
-        type="password"
-        autocomplete="off"
-        v-on:click.stop
-        v-on:keydown.stop
-        v-on:change="saveCopyPrefix(entry, $event)"
       />
     </div>
     <div
@@ -212,28 +205,10 @@ export default Vue.extend({
       }, 3000);
       return;
     },
-    defaultCopyPrefix(): string {
-      return this.$store.state.accounts.staticPassword || "";
-    },
-    effectiveCopyPrefix(entry: OTPEntry): string {
-      return entry.copyPrefix ?? this.defaultCopyPrefix();
-    },
-    async saveCopyPrefix(entry: OTPEntry, event: Event) {
-      const input = event.target as HTMLInputElement;
-      const previousPrefix = entry.copyPrefix;
-      const previousEncryptedPrefix = entry.encCopyPrefix;
-      try {
-        const encryption = this.$store.state.accounts.encryption;
-        entry.setCopyPrefix(input.value, encryption);
-        await entry.update();
-      } catch (error) {
-        entry.copyPrefix = previousPrefix;
-        entry.encCopyPrefix = previousEncryptedPrefix;
-        input.value = previousPrefix ?? this.defaultCopyPrefix();
-        this.$store.commit("notification/alert", this.i18n.updateFailure);
-        return;
-      }
-      await this.$store.dispatch("accounts/refreshExports");
+    editCopyPrefix(entry: OTPEntry) {
+      this.$store.commit("currentView/setCopyPrefixEntry", entry.hash);
+      this.$store.commit("currentView/changeView", "SetStaticPasswordPage");
+      this.$store.commit("style/showInfo");
     },
     async copyCode(entry: OTPEntry) {
       if (
@@ -274,9 +249,7 @@ export default Vue.extend({
             }
 
             const lastActiveElement = document.activeElement as HTMLElement;
-            codeClipboard.value = entry.getCopyText(
-              this.$store.state.accounts.staticPassword
-            );
+            codeClipboard.value = entry.getCopyText();
             codeClipboard.focus();
             codeClipboard.select();
             document.execCommand("Copy");

@@ -81,3 +81,32 @@ test("plain and encrypted JSON backups retain prefix, empty override, and old da
   reloaded.changeEncryption(new Encryption(""));
   assert.equal(EntryStorage.getExport([reloaded])[entry.hash].copyPrefix, "new-");
 });
+
+test("legacy global value migrates only old entries and survives complete backup", async () => {
+  const { UserSettings } = require("../src/models/settings.ts");
+  const key = new Encryption("legacy-test-key");
+  const old = makeEntry(undefined, key);
+  const explicit = makeEntry("personal-", key);
+  const cleared = makeEntry("", key);
+  const initial = EntryStorage.getExport([old, explicit, cleared], true);
+  let stored = JSON.parse(JSON.stringify(initial));
+  BrowserStorage.get = async () => JSON.parse(JSON.stringify(stored));
+  BrowserStorage.set = async (data) => { stored = { ...stored, ...data }; };
+  BrowserStorage.getKey = async () => null;
+  UserSettings.items.staticPassword = "legacy-";
+  const beforePopup = await EntryStorage.backupGetExport(key, true);
+  assert.equal(key.getDecryptedString(beforePopup[old.hash].copyPrefix), "legacy-");
+  const locked = await EntryStorage.get();
+  await EntryStorage.migrateLegacyCopyPrefixes(locked, new Encryption(""));
+  assert.equal(stored[old.hash].copyPrefix, undefined);
+  for (const entry of locked) entry.applyEncryption(key);
+  await EntryStorage.migrateLegacyCopyPrefixes(locked, key);
+  assert.equal(key.getDecryptedString(stored[old.hash].copyPrefix), "legacy-");
+  assert.equal(key.getDecryptedString(stored[explicit.hash].copyPrefix), "personal-");
+  assert.equal(key.getDecryptedString(stored[cleared.hash].copyPrefix), "");
+  const restored = decryptBackupData(await EntryStorage.backupGetExport(key, true), "legacy-test-key");
+  assert.equal(restored[old.hash].copyPrefix, "legacy-");
+  assert.equal(restored[explicit.hash].copyPrefix, "personal-");
+  assert.equal(restored[cleared.hash].copyPrefix, "");
+  UserSettings.items.staticPassword = undefined;
+});

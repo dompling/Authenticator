@@ -1,7 +1,7 @@
 {
     "copy_prefix": {
-        "message": "複製前綴（選填）",
-        "description": "Optional per-account prefix for copying the OTP code."
+        "message": "靜態密碼（複製前綴，選填）",
+        "description": "Per-account static password and backup settings."
     },
     "extName": {
         "message": "Authenticator",
@@ -518,5 +518,33 @@
     },
     "permission_scripting": {
         "message": "Inject scripts into he current tab to scan QR codes and allow auto-fill to work."
+    },
+    "copy_prefix_set": {
+        "message": "設定靜態密碼",
+        "description": "Per-account static password and backup settings."
+    },
+    "copy_prefix_edit": {
+        "message": "修改靜態密碼 ••••",
+        "description": "Per-account static password and backup settings."
+    },
+    "copy_prefix_help": {
+        "message": "僅對目前帳號生效，複製時自動接在驗證碼前面。清空後僅複製驗證碼。",
+        "description": "Per-account static password and backup settings."
+    },
+    "backup_full_json": {
+        "message": "下載完整 JSON 備份",
+        "description": "Per-account static password and backup settings."
+    },
+    "backup_standard_otp": {
+        "message": "匯出標準 OTP 文字（不含靜態密碼）",
+        "description": "Per-account static password and backup settings."
+    },
+    "drive_not_configured": {
+        "message": "目前版本尚未設定 Google Drive 授權，請依照儲存庫說明設定 Chrome OAuth Client ID 後重新打包。",
+        "description": "Per-account static password and backup settings."
+    },
+    "drive_require_password": {
+        "message": "請先在安全設定中設定加密主密碼，再上傳加密備份到 Google Drive。",
+        "description": "Per-account static password and backup settings."
     }
 }
