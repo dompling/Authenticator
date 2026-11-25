@@ -2,6 +2,10 @@ name: CI
 
 on: [push, pull_request]
 
+concurrency:
+  group: ci-${{ github.head_ref || github.ref_name }}
+  cancel-in-progress: true
+
 jobs:
   style:
     runs-on: ubuntu-latest
@@ -15,10 +19,12 @@ jobs:
 
       - name: Install dependencies
         run: |
-          npm i prettier
+          npm ci
+        env:
+          PUPPETEER_SKIP_DOWNLOAD: 'true'
 
       - name: Prettier
-        run: ./node_modules/prettier/bin-prettier.js --check ./src/* ./src/**/* ./src/**/**/* ./sass/*.scss
+        run: ./node_modules/.bin/prettier --check "src/**/*.{ts,vue,js}" "sass/*.scss"
 
   build:
     runs-on: ubuntu-latest

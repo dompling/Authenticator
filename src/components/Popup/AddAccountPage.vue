@@ -8,6 +8,11 @@
       :label="i18n.secret"
       v-model="newAccount.secret"
     ></a-text-input>
+    <a-text-input
+      :label="i18n.copy_prefix"
+      type="password"
+      v-model="newAccount.copyPrefix"
+    ></a-text-input>
     <details>
       <summary>{{ i18n.advanced }}</summary>
       <a-text-input
@@ -53,6 +58,7 @@ export default Vue.extend({
     newAccount: {
       issuer: string;
       account: string;
+      copyPrefix: string;
       secret: string;
       type: OTPType;
       period: number | undefined;
@@ -64,6 +70,7 @@ export default Vue.extend({
       newAccount: {
         issuer: "",
         account: "",
+        copyPrefix: "",
         secret: "",
         type: OTPType.totp,
         period: undefined,
@@ -121,6 +128,7 @@ export default Vue.extend({
           index: 0,
           issuer: this.newAccount.issuer,
           account: this.newAccount.account,
+          copyPrefix: this.newAccount.copyPrefix || undefined,
           encrypted: false,
           secret: this.newAccount.secret,
           counter: 0,

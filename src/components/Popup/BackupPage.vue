@@ -177,7 +177,8 @@ function hasUnsupportedAccounts(exportData: { [h: string]: OTPStorage }) {
   for (const entry of Object.keys(exportData)) {
     if (
       exportData[entry].type === "battle" ||
-      exportData[entry].type === "steam"
+      exportData[entry].type === "steam" ||
+      exportData[entry].copyPrefix !== undefined
     ) {
       return true;
     }
@@ -190,7 +191,7 @@ function getBackupFile(
   key?: Object
 ) {
   if (key) {
-    Object.assign(entryData, { key: key });
+    entryData = Object.assign({}, entryData, { key: key });
   }
   let json = JSON.stringify(entryData, null, 2);
   // for windows notepad
@@ -201,7 +202,7 @@ function getBackupFile(
 function getOneLineOtpBackupFile(entryData: { [hash: string]: OTPStorage }) {
   const otpAuthLines: string[] = [];
   for (const hash of Object.keys(entryData)) {
-    const otpStorage = entryData[hash];
+    const otpStorage = { ...entryData[hash] };
     if (otpStorage.issuer) {
       otpStorage.issuer = removeUnsafeData(otpStorage.issuer);
     }

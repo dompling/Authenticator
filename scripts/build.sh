@@ -10,7 +10,7 @@ PLATFORM=$1
 REMOTE=$(git config --get remote.origin.url)
 CREDS=$(cat ./src/models/credentials.ts | tr -d '\n')
 CREDREGEX='^.*".+".*".+".*".+".*".+".*".+".*$'
-STYLEFILES="./src/* ./src/**/* ./src/**/**/* ./src/**/**/**/* ./sass/*.scss"
+STYLEFILES=("src/**/*.{ts,vue,js}" "sass/*.scss")
 set -e
 
 if [[ $PLATFORM != "chrome" ]] && [[ $PLATFORM != "firefox" ]] && [[ $PLATFORM != "edge" ]] && [[ $PLATFORM != "prod" ]] && [[ $PLATFORM != "test" ]]; then
@@ -22,10 +22,10 @@ echo "Removing old build files..."
 rm -rf build dist
 rm -rf firefox chrome edge release test
 echo "Checking style..."
-if ./node_modules/.bin/prettier --check $STYLEFILES 1> /dev/null ; then
+if ./node_modules/.bin/prettier --check "${STYLEFILES[@]}" 1> /dev/null ; then
     true
 else
-    ./node_modules/.bin/prettier --check $STYLEFILES --write
+    ./node_modules/.bin/prettier --write "${STYLEFILES[@]}"
 fi
 
 ./node_modules/.bin/eslint . --ext .js,.ts

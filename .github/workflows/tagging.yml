@@ -1,11 +1,13 @@
 name: Tagging
 
 on:
-  push:
-    branches: [ release ]
+  # Legacy upstream multi-browser tagging requires DEPLOY_KEY_PASSWORD.
+  # Chrome releases are published separately by chrome-package.yml.
+  workflow_dispatch:
 
 jobs:
   tagging:
+    if: github.ref == 'refs/heads/release'
     runs-on: ubuntu-latest
     name: Release tagging
     

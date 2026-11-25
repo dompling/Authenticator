@@ -1,0 +1,83 @@
+name: Chrome extension package
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [release, 'feat/**']
+  pull_request:
+    branches: [release]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: chrome-package-${{ github.head_ref || github.ref_name }}
+  cancel-in-progress: true
+
+jobs:
+  package:
+    runs-on: ubuntu-latest
+    env:
+      PUPPETEER_SKIP_DOWNLOAD: 'true'
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: npm
+      - run: npm ci
+      - name: Test copy prefix and backup round trips
+        run: node --test scripts/test-copy-prefix.cjs
+      - name: Build Chrome extension
+        run: npm run chrome
+      - name: Validate and package
+        run: |
+          test -f chrome/manifest.json
+          test -f chrome/dist/background.js
+          test -f chrome/view/popup.html
+          node -e 'if (require("./chrome/manifest.json").manifest_version !== 3) process.exit(1)'
+          cd chrome
+          zip -q -r ../authenticator-chrome.zip .
+      - uses: actions/upload-artifact@v4
+        with:
+          name: authenticator-chrome
+          path: authenticator-chrome.zip
+          if-no-files-found: error
+
+  publish:
+    name: Publish Chrome ZIP to GitHub Releases
+    if: github.ref == 'refs/heads/release' && github.event_name != 'pull_request'
+    needs: package
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    env:
+      GH_TOKEN: ${{ github.token }}
+      GH_REPO: ${{ github.repository }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/download-artifact@v4
+        with:
+          name: authenticator-chrome
+          path: release-assets
+      - name: Publish versioned release
+        shell: bash
+        run: |
+          set -euo pipefail
+          version=$(node -p 'require("./manifests/manifest-chrome.json").version')
+          tag="chrome-v${version}"
+          asset="release-assets/authenticator-chrome.zip"
+          test -s "$asset"
+          if gh release view "$tag" >/dev/null 2>&1; then
+            target=$(git ls-remote origin "refs/tags/$tag" | cut -f1)
+            if [[ "$target" == "$GITHUB_SHA" ]]; then
+              gh release upload "$tag" "$asset" --clobber
+            else
+              echo "::notice::Release $tag already exists for another commit. Bump the Chrome manifest version to publish a new release."
+            fi
+          else
+            gh release create "$tag" "$asset" \
+              --target "$GITHUB_SHA" \
+              --title "Authenticator Chrome v$version" \
+              --generate-notes --latest
+          fi

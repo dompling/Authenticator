@@ -5,6 +5,8 @@ interface OTPEntryInterface {
   encSecret: string | null;
   secret: string | null;
   account: string;
+  copyPrefix: string | undefined;
+  encCopyPrefix: string | undefined;
   hash: string;
   counter: number;
   code: string;
@@ -12,6 +14,8 @@ interface OTPEntryInterface {
   digits: number;
   algorithm: number; // OTPAlgorithm
   pinned: boolean;
+  getCopyText(defaultPrefix?: string): string;
+  setCopyPrefix(prefix: string, encryption: EncryptionInterface): void;
   create(): Promise<void>;
   update(): Promise<void>;
   next(): Promise<void>;
@@ -24,6 +28,7 @@ interface OTPEntryInterface {
 
 interface EncryptionInterface {
   getEncryptedString(data: string): string;
+  getDecryptedString(data: string): string | null;
   getDecryptedSecret(entry: OTPStorage): string | null;
   getEncryptionStatus(): boolean;
   updateEncryptionPassword(password: string): void;
@@ -31,6 +36,7 @@ interface EncryptionInterface {
 
 interface OTPStorage {
   account?: string;
+  copyPrefix?: string;
   encrypted: boolean;
   hash: string;
   index: number;
