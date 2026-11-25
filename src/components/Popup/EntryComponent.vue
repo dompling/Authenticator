@@ -82,7 +82,9 @@
         v-bind:placeholder="i18n.copy_prefix"
         v-bind:aria-label="i18n.copy_prefix"
         v-bind:value="
-          entry.copyPrefix === undefined ? staticPassword || '' : entry.copyPrefix
+          entry.copyPrefix === undefined
+            ? staticPassword || ''
+            : entry.copyPrefix
         "
         v-bind:disabled="entry.secret === null"
         type="password"
@@ -223,12 +225,16 @@ export default Vue.extend({
       const previousPrefix = entry.copyPrefix;
       const previousEncryptedPrefix = entry.encCopyPrefix;
       try {
-        entry.setCopyPrefix(input.value, this.$store.state.accounts.encryption);
+        entry.setCopyPrefix(
+          input.value,
+          this.$store.state.accounts.encryption
+        );
         await entry.update();
       } catch (error) {
         entry.copyPrefix = previousPrefix;
         entry.encCopyPrefix = previousEncryptedPrefix;
-        input.value = previousPrefix ?? this.staticPassword ?? "";
+        input.value =
+          previousPrefix ?? this.$store.state.accounts.staticPassword ?? "";
         this.$store.commit("notification/alert", this.i18n.updateFailure);
         return;
       }

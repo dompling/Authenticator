@@ -174,7 +174,10 @@ export class Accounts implements Module {
       },
       actions: {
         refreshExports: (state: ActionContext<AccountsState, {}>) => {
-          state.commit("updateExport", EntryStorage.getExport(state.state.entries));
+          state.commit(
+            "updateExport",
+            EntryStorage.getExport(state.state.entries)
+          );
           state.commit(
             "updateEncExport",
             EntryStorage.getExport(state.state.entries, true)
