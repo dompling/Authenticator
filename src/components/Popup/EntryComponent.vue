@@ -63,10 +63,7 @@
     <div class="issuer account">
       {{ entry.account }}
     </div>
-    <div
-      class="issuer account"
-      v-if="entry.copyPrefix === undefined ? staticPassword : entry.copyPrefix"
-    >
+    <div class="issuer account" v-if="effectiveCopyPrefix(entry)">
       {{ i18n.copy_prefix }}: ••••
     </div>
     <div class="issuerEdit">
@@ -81,11 +78,7 @@
       <input
         v-bind:placeholder="i18n.copy_prefix"
         v-bind:aria-label="i18n.copy_prefix"
-        v-bind:value="
-          entry.copyPrefix === undefined
-            ? staticPassword || ''
-            : entry.copyPrefix
-        "
+        v-bind:value="effectiveCopyPrefix(entry)"
         v-bind:disabled="entry.secret === null"
         type="password"
         autocomplete="off"
@@ -130,7 +123,6 @@ const computedPrototype = [
     "sectorOffset",
     "second",
     "encryption",
-    "staticPassword",
   ]),
   mapState("style", ["style"]),
   mapState("menu", ["theme"]),
@@ -220,21 +212,24 @@ export default Vue.extend({
       }, 3000);
       return;
     },
+    defaultCopyPrefix(): string {
+      return this.$store.state.accounts.staticPassword || "";
+    },
+    effectiveCopyPrefix(entry: OTPEntry): string {
+      return entry.copyPrefix ?? this.defaultCopyPrefix();
+    },
     async saveCopyPrefix(entry: OTPEntry, event: Event) {
       const input = event.target as HTMLInputElement;
       const previousPrefix = entry.copyPrefix;
       const previousEncryptedPrefix = entry.encCopyPrefix;
       try {
-        entry.setCopyPrefix(
-          input.value,
-          this.$store.state.accounts.encryption
-        );
+        const encryption = this.$store.state.accounts.encryption;
+        entry.setCopyPrefix(input.value, encryption);
         await entry.update();
       } catch (error) {
         entry.copyPrefix = previousPrefix;
         entry.encCopyPrefix = previousEncryptedPrefix;
-        input.value =
-          previousPrefix ?? this.$store.state.accounts.staticPassword ?? "";
+        input.value = previousPrefix ?? this.defaultCopyPrefix();
         this.$store.commit("notification/alert", this.i18n.updateFailure);
         return;
       }
