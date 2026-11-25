@@ -1,0 +1,45 @@
+name: Chrome extension package
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [release, 'feat/**']
+  pull_request:
+    branches: [release]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: chrome-package-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  package:
+    runs-on: ubuntu-latest
+    env:
+      PUPPETEER_SKIP_DOWNLOAD: 'true'
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: npm
+      - run: npm ci
+      - name: Test copy prefix and backup round trips
+        run: node --test scripts/test-copy-prefix.cjs
+      - name: Build Chrome extension
+        run: npm run chrome
+      - name: Validate and package
+        run: |
+          test -f chrome/manifest.json
+          test -f chrome/dist/background.js
+          test -f chrome/view/popup.html
+          node -e 'if (require("./chrome/manifest.json").manifest_version !== 3) process.exit(1)'
+          cd chrome
+          zip -q -r ../authenticator-chrome.zip .
+      - uses: actions/upload-artifact@v4
+        with:
+          name: authenticator-chrome
+          path: authenticator-chrome.zip
+          if-no-files-found: error
