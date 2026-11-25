@@ -110,3 +110,31 @@ test("legacy global value migrates only old entries and survives complete backup
   assert.equal(restored[cleared.hash].copyPrefix, "");
   UserSettings.items.staticPassword = undefined;
 });
+
+test("Drive API displays 403 rather than hanging and loads account through v3", async () => {
+  const { Drive } = require("../src/models/backup.ts");
+  const { UserSettings } = require("../src/models/settings.ts");
+  const originalFetch = global.fetch;
+  const originalUpdate = UserSettings.updateItems;
+  const originalItems = UserSettings.items;
+  UserSettings.items = { driveToken: "test-token" };
+  UserSettings.updateItems = async () => {};
+  try {
+    global.fetch = async (url, options) => {
+      assert.match(url, /\/drive\/v3\/about\?fields=user/);
+      assert.equal(options.headers.Authorization, "Bearer test-token");
+      return new Response(JSON.stringify({
+        error: { code: 403, message: "Drive API has not been enabled", errors: [{ reason: "accessNotConfigured" }] }
+      }), { status: 403 });
+    };
+    await assert.rejects(new Drive().getUser(), /403.*accessNotConfigured/);
+    global.fetch = async () => new Response(JSON.stringify({
+      user: { emailAddress: "test@example.com" }
+    }), { status: 200 });
+    assert.equal(await new Drive().getUser(), "test@example.com");
+  } finally {
+    global.fetch = originalFetch;
+    UserSettings.updateItems = originalUpdate;
+    UserSettings.items = originalItems;
+  }
+});

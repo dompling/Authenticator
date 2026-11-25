@@ -1,30 +1,35 @@
 <template>
   <div>
-    <div>
-      <div class="text warning" v-if="!configured">
-        {{ i18n.drive_not_configured }}
-      </div>
-      <div class="text warning" v-if="!encryption.getEncryptionStatus()">
-        {{ i18n.drive_require_password }}
-      </div>
-      <div v-show="backupToken">
-        <div style="margin: 10px 0px 0px 20px; overflow-wrap: break-word">
-          {{ i18n.account }} - {{ email }}
-        </div>
-      </div>
-      <a-button v-show="backupToken" @click="backupLogout()">
-        {{ i18n.log_out }}
-      </a-button>
-      <a-button v-if="configured && !backupToken" @click="getBackupToken()">
-        {{ i18n.sign_in }}
-      </a-button>
-      <a-button
-        v-if="configured && backupToken && encryption.getEncryptionStatus()"
-        @click="backupUpload()"
-      >
-        {{ i18n.manual_dropbox }}
-      </a-button>
+    <div class="text warning" v-if="!configured">
+      {{ i18n.drive_not_configured }}
     </div>
+    <div class="text warning" v-if="!encryption.getEncryptionStatus()">
+      {{ i18n.drive_require_password }}
+    </div>
+    <div v-if="backupToken">
+      <div class="text" style="overflow-wrap: break-word">
+        {{ i18n.account }} - {{ email }}
+      </div>
+    </div>
+    <div class="text warning" v-if="errorMessage" style="overflow-wrap: anywhere">
+      {{ errorMessage }}
+    </div>
+    <div class="text" v-if="busy">{{ i18n.loading }}</div>
+    <a-button v-if="configured && !backupToken && !busy" @click="getBackupToken()">
+      {{ i18n.sign_in }}
+    </a-button>
+    <a-button v-if="backupToken && !busy" @click="backupLogout()">
+      {{ i18n.log_out }}
+    </a-button>
+    <a-button v-if="backupToken && errorMessage && !busy" @click="loadUser()">
+      {{ retryLabel }}
+    </a-button>
+    <a-button
+      v-if="configured && backupToken && encryption.getEncryptionStatus() && !busy"
+      @click="backupUpload()"
+    >
+      {{ i18n.manual_dropbox }}
+    </a-button>
   </div>
 </template>
 <script lang="ts">
@@ -36,20 +41,21 @@ import { UserSettings } from "../../models/settings";
 const service = "drive";
 
 export default Vue.extend({
-  data: function () {
+  data() {
     return {
-      email: this.i18n.loading,
+      email: "",
+      errorMessage: "",
+      busy: false,
     };
   },
   created() {
-    UserSettings.updateItems();
     chrome.runtime.onMessage.addListener(this.onAuthMessage);
   },
   beforeDestroy() {
     chrome.runtime.onMessage.removeListener(this.onAuthMessage);
   },
   computed: {
-    encryption: function () {
+    encryption() {
       return this.$store.state.accounts.encryption;
     },
     configured(): boolean {
@@ -58,79 +64,96 @@ export default Vue.extend({
       };
       return !isChrome || Boolean(manifest.oauth2?.client_id);
     },
-    backupToken: function () {
+    backupToken(): boolean {
       return this.$store.state.backup.driveToken;
+    },
+    retryLabel(): string {
+      const language = chrome.i18n.getUILanguage();
+      return language.startsWith("zh") ? "重试" : "Retry";
     },
   },
   methods: {
-    onAuthMessage(message: { action: string; value?: string }) {
+    showError(error: unknown) {
+      this.errorMessage =
+        error instanceof Error ? error.message : String(error);
+      if (UserSettings.items.driveRevoked) {
+        this.$store.commit("backup/setToken", { service, value: false });
+        this.email = "";
+      }
+    },
+    async onAuthMessage(message: { action: string; value?: string }) {
       if (message.action === "driveautherror") {
-        this.$store.commit("notification/alert", message.value);
+        this.busy = false;
+        this.showError(message.value || "Google authorization failed");
       } else if (message.action === "drivetoken") {
         this.$store.commit("backup/setToken", { service, value: true });
-        this.getUser().then((email) => {
-          this.email = email;
-        });
+        this.busy = false;
+        await this.loadUser();
       }
     },
     getBackupToken() {
+      this.errorMessage = "";
       chrome.runtime.sendMessage({ action: service });
     },
-    async backupLogout() {
-      await new Promise((resolve: (value: boolean) => void) => {
-        const xhr = new XMLHttpRequest();
-        xhr.open(
-          "POST",
-          "https://accounts.google.com/o/oauth2/revoke?token=" +
-            UserSettings.items.driveToken
-        );
-        xhr.onreadystatechange = () => {
-          if (xhr.readyState === 4) {
-            if (isChrome) {
-              chrome.identity.removeCachedAuthToken(
-                { token: UserSettings.items.driveToken as string },
-                () => {
-                  resolve(true);
-                }
-              );
-            } else {
-              resolve(true);
-            }
-            return;
-          }
-        };
-        xhr.send();
-      });
-      UserSettings.removeItem("driveToken");
-      this.$store.commit("backup/setToken", { service, value: false });
-      this.$store.commit("style/hideInfo");
-    },
-    async backupUpload() {
-      const drive = new Drive();
-      const response = await drive.upload(
-        this.$store.state.accounts.encryption
-      );
-      if (response === true) {
-        this.$store.commit("notification/alert", this.i18n.updateSuccess);
-      } else if (UserSettings.items.driveRevoked === true) {
-        this.$store.commit(
-          "notification/alert",
-          chrome.i18n.getMessage("token_revoked", ["Google Drive"])
-        );
-        UserSettings.removeItem("driveRevoked");
-        this.$store.commit("backup/setToken", { service, value: false });
-      } else {
-        this.$store.commit("notification/alert", this.i18n.updateFailure);
+    async loadUser() {
+      if (this.busy) {
+        return;
+      }
+      this.busy = true;
+      this.email = this.i18n.loading;
+      this.errorMessage = "";
+      try {
+        this.email = await new Drive().getUser();
+      } catch (error) {
+        this.email = "";
+        this.showError(error);
+      } finally {
+        this.busy = false;
       }
     },
-    async getUser() {
-      const drive = new Drive();
-      return await drive.getUser();
+    async backupLogout() {
+      if (this.busy) {
+        return;
+      }
+      this.busy = true;
+      this.errorMessage = "";
+      try {
+        await new Drive().logout();
+        this.$store.commit("backup/setToken", { service, value: false });
+        this.email = "";
+      } catch (error) {
+        this.showError(error);
+      } finally {
+        this.busy = false;
+      }
+    },
+    async backupUpload() {
+      if (this.busy) {
+        return;
+      }
+      this.busy = true;
+      this.errorMessage = "";
+      try {
+        if (await new Drive().upload(this.$store.state.accounts.encryption)) {
+          this.$store.commit("notification/alert", this.i18n.updateSuccess);
+        } else {
+          this.errorMessage = this.i18n.updateFailure;
+        }
+      } catch (error) {
+        this.showError(error);
+      } finally {
+        this.busy = false;
+      }
     },
   },
-  mounted: async function () {
+  async mounted() {
+    await UserSettings.updateItems();
+    this.$store.commit("backup/setToken", {
+      service,
+      value: Boolean(UserSettings.items.driveToken),
+    });
     if (this.backupToken) {
-      this.email = await this.getUser();
+      await this.loadUser();
     }
   },
 });

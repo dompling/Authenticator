@@ -111,371 +111,274 @@ export class Dropbox implements BackupProvider {
   }
 }
 
-export class Drive implements BackupProvider {
-  private async getToken() {
-    await UserSettings.updateItems();
-    if (
-      !UserSettings.items.driveToken ||
-      (await new Promise(
-        (
-          resolve: (value: boolean) => void,
-          reject: (reason: Error) => void
-        ) => {
-          const xhr = new XMLHttpRequest();
-          xhr.open("GET", "https://www.googleapis.com/drive/v3/files");
-          xhr.setRequestHeader(
-            "Authorization",
-            "Bearer " + UserSettings.items.driveToken
-          );
-          xhr.onreadystatechange = async () => {
-            if (xhr.readyState === 4) {
-              try {
-                const res = JSON.parse(xhr.responseText);
-                if (res.error) {
-                  if (res.error.code === 401) {
-                    if (
-                      navigator.userAgent.indexOf("Chrome") !== -1 &&
-                      navigator.userAgent.indexOf("OPR") === -1 &&
-                      navigator.userAgent.indexOf("Edg") === -1
-                    ) {
-                      // Clear invalid token from
-                      // chrome://identity-internals/
-                      await chrome.identity.removeCachedAuthToken({
-                        token: UserSettings.items.driveToken as string,
-                      });
-                    }
-                    UserSettings.items.driveToken = undefined;
-                    UserSettings.commitItems();
-                    resolve(true);
-                  }
-                } else {
-                  resolve(false);
-                }
-              } catch (error) {
-                console.error(error);
-                reject(error as Error);
-              }
-            }
-            return;
-          };
-          xhr.send();
-        }
-      ))
-    ) {
-      await this.refreshToken();
+class DriveApiError extends Error {
+  constructor(public status: number, message: string) {
+    super(message);
+    Object.setPrototypeOf(this, DriveApiError.prototype);
+  }
+}
+
+async function driveFetch(url: string, options: RequestInit = {}) {
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), 15000);
+  try {
+    const response = await fetch(url, {
+      ...options,
+      signal: controller.signal,
+    });
+    const text = await response.text();
+    let data;
+    try {
+      data = text ? JSON.parse(text) : {};
+    } catch (error) {
+      throw new DriveApiError(response.status, "Invalid Google Drive response");
     }
-    return UserSettings.items.driveToken;
+    if (!response.ok || data.error) {
+      const error = data.error;
+      const reason =
+        error?.details?.find(
+          (detail: { reason?: string }) => detail.reason
+        )?.reason || error?.errors?.[0]?.reason;
+      const message =
+        error?.message || data.error_description || response.statusText;
+      throw new DriveApiError(
+        response.status,
+        "Google Drive HTTP " +
+          response.status +
+          (reason ? " [" + reason + "]" : "") +
+          (message ? ": " + message : "")
+      );
+    }
+    return data;
+  } catch (error) {
+    if (controller.signal.aborted) {
+      throw new Error("Google Drive request timed out");
+    }
+    throw error;
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
+export class Drive implements BackupProvider {
+  private get nativeChrome() {
+    const agent = navigator.userAgent;
+    return (
+      agent.indexOf("Chrome") !== -1 &&
+      agent.indexOf("OPR") === -1 &&
+      agent.indexOf("Edg") === -1
+    );
   }
 
   private async refreshToken() {
     await UserSettings.updateItems();
-
-    if (
-      navigator.userAgent.indexOf("Chrome") !== -1 &&
-      navigator.userAgent.indexOf("OPR") === -1 &&
-      navigator.userAgent.indexOf("Edg") === -1
-    ) {
-      return new Promise((resolve: (value: boolean) => void) => {
-        return chrome.identity.getAuthToken(
+    let token: string | undefined;
+    if (this.nativeChrome) {
+      token = await new Promise<string | undefined>((resolve, reject) => {
+        const timer = setTimeout(
+          () => reject(new Error("Google authorization timed out")),
+          15000
+        );
+        chrome.identity.getAuthToken(
           {
             interactive: false,
             scopes: ["https://www.googleapis.com/auth/drive.file"],
           },
-          (token) => {
-            UserSettings.items.driveToken = token;
-            if (!token) {
-              UserSettings.items.driveRevoked = true;
+          (value) => {
+            clearTimeout(timer);
+            const error = chrome.runtime.lastError;
+            if (error || !value) {
+              resolve(undefined);
+            } else {
+              resolve(value);
             }
-            UserSettings.commitItems();
-            resolve(Boolean(token));
           }
         );
       });
-    } else {
-      return new Promise(
-        (
-          resolve: (value: boolean) => void,
-          reject: (reason: Error) => void
-        ) => {
-          const xhr = new XMLHttpRequest();
-          xhr.open(
-            "POST",
-            "https://www.googleapis.com/oauth2/v4/token?client_id=" +
-              getCredentials().drive.client_id +
-              "&client_secret=" +
-              getCredentials().drive.client_secret +
-              "&refresh_token=" +
-              UserSettings.items.driveRefreshToken +
-              "&grant_type=refresh_token"
-          );
-          xhr.setRequestHeader("Accept", "application/json");
-          xhr.onreadystatechange = () => {
-            if (xhr.readyState === 4) {
-              if (xhr.status === 401) {
-                UserSettings.items.driveRefreshToken = undefined;
-                UserSettings.items.driveRevoked = true;
-                UserSettings.commitItems();
-                return resolve(false);
-              }
-              try {
-                const res = JSON.parse(xhr.responseText);
-                if (res.error) {
-                  if (res.error === "invalid_grant") {
-                    UserSettings.items.driveRefreshToken = undefined;
-                    UserSettings.items.driveRevoked = true;
-                    UserSettings.commitItems();
-                  }
-                  console.error(res.error_description);
-                  resolve(false);
-                } else {
-                  UserSettings.items.driveToken = res.access_token;
-                  UserSettings.commitItems();
-                  resolve(true);
-                }
-              } catch (error) {
-                console.error(error);
-                reject(error as Error);
-              }
-            }
-            return;
-          };
-          xhr.send();
+    } else if (UserSettings.items.driveRefreshToken) {
+      const credentials = getCredentials().drive;
+      const body = new URLSearchParams({
+        client_id: credentials.client_id,
+        client_secret: credentials.client_secret,
+        refresh_token: UserSettings.items.driveRefreshToken,
+        grant_type: "refresh_token",
+      });
+      const result = await driveFetch(
+        "https://www.googleapis.com/oauth2/v4/token",
+        {
+          method: "POST",
+          body: body.toString(),
+          headers: { "Content-Type": "application/x-www-form-urlencoded" },
         }
       );
+      token = result.access_token;
+    }
+    await UserSettings.updateItems();
+    UserSettings.items.driveToken = token;
+    UserSettings.items.driveRevoked = !token;
+    await UserSettings.commitItems();
+    return token;
+  }
+
+  private async getToken() {
+    await UserSettings.updateItems();
+    return UserSettings.items.driveToken || (await this.refreshToken());
+  }
+
+  private async request(path: string, options: RequestInit = {}) {
+    let token = await this.getToken();
+    if (!token) {
+      throw new Error("Google authorization expired; sign in again");
+    }
+    const url = "https://www.googleapis.com" + path;
+    const send = (accessToken: string) =>
+      driveFetch(url, {
+        ...options,
+        headers: {
+          Accept: "application/json",
+          ...options.headers,
+          Authorization: "Bearer " + accessToken,
+        },
+      });
+    try {
+      return await send(token);
+    } catch (error) {
+      if (!(error instanceof DriveApiError) || error.status !== 401) {
+        throw error;
+      }
+      if (this.nativeChrome) {
+        await chrome.identity.removeCachedAuthToken({ token });
+      }
+      await UserSettings.updateItems();
+      UserSettings.items.driveToken = undefined;
+      await UserSettings.commitItems();
+      token = await this.refreshToken();
+      if (!token) {
+        throw new Error("Google authorization expired; sign in again");
+      }
+      return await send(token);
     }
   }
 
-  private async getFolder() {
-    const token = await this.getToken();
-    if (!token) {
-      return false;
+  private async getFolder(): Promise<string> {
+    await UserSettings.updateItems();
+    const cached = UserSettings.items.driveFolder;
+    if (cached) {
+      try {
+        const result = await this.request(
+          "/drive/v3/files/" + encodeURIComponent(cached) + "?fields=id,trashed"
+        );
+        if (!result.trashed && result.id) {
+          return result.id;
+        }
+      } catch (error) {
+        if (!(error instanceof DriveApiError) || error.status !== 404) {
+          throw error;
+        }
+      }
+    }
+
+    const query = new URLSearchParams({
+      q: "name = 'Authenticator Backups' and mimeType = 'application/vnd.google-apps.folder' and trashed = false",
+      fields: "files(id),nextPageToken",
+      pageSize: "100",
+    });
+    const folders = await this.request("/drive/v3/files?" + query.toString());
+    const existing = folders.files?.[0]?.id;
+    const folder =
+      existing ||
+      (
+        await this.request("/drive/v3/files?fields=id", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            name: "Authenticator Backups",
+            mimeType: "application/vnd.google-apps.folder",
+          }),
+        })
+      ).id;
+    if (!folder) {
+      throw new Error("Google Drive backup folder was not created");
     }
     await UserSettings.updateItems();
-    if (UserSettings.items.driveFolder) {
-      await new Promise(
-        (
-          resolve: (value: boolean) => void,
-          reject: (reason: Error) => void
-        ) => {
-          const xhr = new XMLHttpRequest();
-          xhr.open(
-            "GET",
-            "https://www.googleapis.com/drive/v3/files/" +
-              UserSettings.items.driveFolder +
-              "?fields=trashed"
-          );
-          xhr.setRequestHeader("Authorization", "Bearer " + token);
-          xhr.setRequestHeader("Accept", "application/json");
-          xhr.onreadystatechange = () => {
-            if (xhr.readyState === 4) {
-              if (xhr.status === 401) {
-                UserSettings.items.driveToken = undefined;
-                UserSettings.commitItems();
-                return resolve(false);
-              }
-              try {
-                const res = JSON.parse(xhr.responseText);
-                if (res.error) {
-                  if (res.error.code === 404) {
-                    UserSettings.items.driveFolder = undefined;
-                    UserSettings.commitItems();
-                    resolve(true);
-                  }
-                } else if (res.trashed) {
-                  UserSettings.items.driveFolder = undefined;
-                  UserSettings.commitItems();
-                  resolve(true);
-                } else if (res.error) {
-                  console.error(res.error.message);
-                  resolve(false);
-                } else {
-                  resolve(true);
-                }
-              } catch (error) {
-                console.error(error);
-                reject(error as Error);
-              }
-            }
-            return;
-          };
-          xhr.send();
-        }
-      );
-    }
-    if (!UserSettings.items.driveFolder) {
-      await new Promise(
-        (
-          resolve: (value: boolean) => void,
-          reject: (reason: Error) => void
-        ) => {
-          // create folder
-          const xhr = new XMLHttpRequest();
-          xhr.open("POST", "https://www.googleapis.com/drive/v3/files/");
-          xhr.setRequestHeader("Authorization", "Bearer " + token);
-          xhr.setRequestHeader("Accept", "application/json");
-          xhr.setRequestHeader("Content-Type", "application/json");
-          xhr.onreadystatechange = () => {
-            if (xhr.readyState === 4) {
-              if (xhr.status === 401) {
-                UserSettings.items.driveToken = undefined;
-                UserSettings.commitItems();
-                return resolve(false);
-              }
-              try {
-                const res = JSON.parse(xhr.responseText);
-                if (!res.error) {
-                  UserSettings.items.driveFolder = res.id;
-                  UserSettings.commitItems();
-                  resolve(true);
-                } else {
-                  console.error(res.error.message);
-                  resolve(false);
-                }
-              } catch (error) {
-                console.error(error);
-                reject(error as Error);
-              }
-            }
-            return;
-          };
-          xhr.send(
-            JSON.stringify({
-              name: "Authenticator Backups",
-              mimeType: "application/vnd.google-apps.folder",
-            })
-          );
-        }
-      );
-    }
-    return UserSettings.items.driveFolder;
+    UserSettings.items.driveFolder = folder;
+    await UserSettings.commitItems();
+    return folder;
   }
 
   async upload(encryption: Encryption) {
     await UserSettings.updateItems();
-    // OTP secrets and static passwords must never be uploaded in plaintext.
     if (!encryption.getEncryptionStatus()) {
-      return false;
+      throw new Error("Set and unlock the main encryption password first");
     }
     const exportData = await EntryStorage.backupGetExport(encryption, true);
-    if (
-      Object.keys(exportData).some(
-        (hash) => hash !== "key" && !exportData[hash].encrypted
-      )
-    ) {
-      return false;
+    const hashes = Object.keys(exportData).filter((hash) => hash !== "key");
+    if (!hashes.length) {
+      throw new Error("No accounts to back up");
     }
-    const backup = JSON.stringify(exportData, null, 2);
-
-    const token = await this.getToken();
-    if (!token) {
-      return false;
+    if (hashes.some((hash) => !exportData[hash].encrypted)) {
+      throw new Error("Backup contains unencrypted accounts");
     }
-    const folderId = await this.getFolder();
-    return new Promise(
-      (resolve: (value: boolean) => void, reject: (reason: Error) => void) => {
-        if (!token || !folderId) {
-          return resolve(false);
-        }
-        try {
-          const xhr = new XMLHttpRequest();
-          const now = new Date().toISOString().slice(0, 10).replace(/-/g, "");
-          xhr.open(
-            "POST",
-            "https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart"
-          );
-          xhr.setRequestHeader("Authorization", "Bearer " + token);
-          xhr.setRequestHeader(
-            "Content-type",
-            "multipart/related; boundary=segment_marker"
-          );
-          xhr.onreadystatechange = () => {
-            if (xhr.readyState === 4) {
-              if (xhr.status === 401) {
-                UserSettings.items.driveToken = undefined;
-                UserSettings.commitItems();
-                return resolve(false);
-              }
-              try {
-                const res = JSON.parse(xhr.responseText);
-                if (!res.error) {
-                  resolve(true);
-                } else {
-                  console.error(res.error.message);
-                  resolve(false);
-                }
-              } catch (error) {
-                reject(error as Error);
-              }
-            }
-            return;
-          };
-          const requestDataPrototype = [
-            "--segment_marker",
-            "Content-Type: application/json; charset=UTF-8",
-            "",
-            JSON.stringify({
-              name: `${now}.json`,
-              parents: [UserSettings.items.driveFolder],
-            }),
-            "",
-            "--segment_marker",
-            "Content-Type: application/octet-stream",
-            "",
-            backup,
-            "--segment_marker--",
-          ];
-          let requestData = "";
-          requestDataPrototype.forEach((line) => {
-            requestData = requestData + line + "\n";
-          });
-          xhr.send(requestData);
-        } catch (error) {
-          return reject(error as Error);
-        }
+    const folder = await this.getFolder();
+    const boundary = "authenticator_" + Date.now();
+    const now = new Date().toISOString().replace(/[:.]/g, "-");
+    const body = [
+      "--" + boundary,
+      "Content-Type: application/json; charset=UTF-8",
+      "",
+      JSON.stringify({ name: now + ".json", parents: [folder] }),
+      "--" + boundary,
+      "Content-Type: application/json; charset=UTF-8",
+      "",
+      JSON.stringify(exportData, null, 2),
+      "--" + boundary + "--",
+      "",
+    ].join("\r\n");
+    const result = await this.request(
+      "/upload/drive/v3/files?uploadType=multipart&fields=id",
+      {
+        method: "POST",
+        headers: { "Content-Type": "multipart/related; boundary=" + boundary },
+        body,
       }
     );
+    return Boolean(result.id);
   }
 
-  async getUser() {
-    const token = await this.getToken();
-    if (!token) {
-      return "Error: Access revoked or expired.";
-    }
+  async getUser(): Promise<string> {
+    const result = await this.request(
+      "/drive/v3/about?fields=user(emailAddress,displayName)"
+    );
+    return result.user?.emailAddress || result.user?.displayName || "Google Drive";
+  }
 
+  async logout() {
     await UserSettings.updateItems();
-    return new Promise((resolve: (value: string) => void) => {
-      if (!token) {
-        resolve("Error: Access revoked or expired.");
+    const token = UserSettings.items.driveToken;
+    if (token) {
+      try {
+        await driveFetch("https://accounts.google.com/o/oauth2/revoke", {
+          method: "POST",
+          headers: { "Content-Type": "application/x-www-form-urlencoded" },
+          body: new URLSearchParams({ token }).toString(),
+        });
+      } catch (error) {
+        // Local logout must still work if Google is temporarily unreachable.
       }
-      const xhr = new XMLHttpRequest();
-      xhr.open("GET", "https://www.googleapis.com/drive/v2/about?fields=user");
-      xhr.setRequestHeader("Authorization", "Bearer " + token);
-      xhr.onreadystatechange = () => {
-        if (xhr.readyState === 4) {
-          if (xhr.status === 401) {
-            UserSettings.items.driveToken = undefined;
-            UserSettings.commitItems();
-            resolve(
-              "Error: Response was 401. You will be logged out the next time you open Authenticator."
-            );
-          }
-          try {
-            const res = JSON.parse(xhr.responseText);
-            if (!res.error) {
-              resolve(res.user.emailAddress);
-            } else {
-              console.error(res.error.message);
-              resolve("Error");
-            }
-          } catch (e) {
-            console.error(e);
-            resolve("Error");
-          }
+      if (this.nativeChrome) {
+        try {
+          await chrome.identity.removeCachedAuthToken({ token });
+        } catch (error) {
+          // The cache may already have been cleared.
         }
-        return;
-      };
-      xhr.send();
-    });
+      }
+    }
+    await UserSettings.updateItems();
+    UserSettings.items.driveToken = undefined;
+    UserSettings.items.driveRefreshToken = undefined;
+    UserSettings.items.driveFolder = undefined;
+    UserSettings.items.driveRevoked = false;
+    await UserSettings.commitItems();
   }
 }
 
