@@ -15,6 +15,22 @@ export class Encryption implements EncryptionInterface {
     }
   }
 
+  // Prefixes are arbitrary text, not Base32/hex OTP secrets.
+  getDecryptedString(data: string): string | null {
+    if (!this.password) {
+      return null;
+    }
+    try {
+      const decrypted = CryptoJS.AES.decrypt(data, this.password);
+      if (decrypted.sigBytes < 0) {
+        return null;
+      }
+      return decrypted.toString(CryptoJS.enc.Utf8);
+    } catch (error) {
+      return null;
+    }
+  }
+
   getDecryptedSecret(entry: { secret: string; hash: string }) {
     try {
       const decryptedSecret = CryptoJS.AES.decrypt(

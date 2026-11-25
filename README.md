@@ -35,3 +35,9 @@ npm run dev:chrome
 ```
 
 Note that Windows users should download a tool like [Git Bash](https://git-scm.com/download/win) or [Cygwin](http://cygwin.com/) to build.
+
+## Per-account copy prefix
+
+Set an optional prefix when adding an account, or edit an existing account with the pencil icon. Clicking the account copies the prefix followed immediately by the current OTP, without changing the displayed code or automatic website autofill. Accounts without a custom prefix inherit the existing global static password; clearing an existing prefix overrides that default with an empty string. Prefix values are masked in the account list.
+
+The prefix is included in Authenticator JSON backups and restored with the account. If a main encryption password is enabled, configured prefixes are encrypted at rest and in encrypted JSON backups. Plain backups automatically use JSON when any account has a custom prefix, because the standard otpauth format and QR codes do not carry this setting. Keep plain backups private.

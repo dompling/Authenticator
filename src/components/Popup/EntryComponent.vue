@@ -63,13 +63,33 @@
     <div class="issuer account">
       {{ entry.account }}
     </div>
-    <div class="issuer account">静态密码：{{ staticPassword }}</div>
+    <div
+      class="issuer account"
+      v-if="entry.copyPrefix === undefined ? staticPassword : entry.copyPrefix"
+    >
+      {{ i18n.copy_prefix }}: ••••
+    </div>
     <div class="issuerEdit">
       <input
         v-bind:placeholder="i18n.accountName"
         type="text"
         v-model="entry.account"
         v-on:change="entry.update(encryption)"
+      />
+    </div>
+    <div class="issuerEdit">
+      <input
+        v-bind:placeholder="i18n.copy_prefix"
+        v-bind:aria-label="i18n.copy_prefix"
+        v-bind:value="
+          entry.copyPrefix === undefined ? staticPassword || '' : entry.copyPrefix
+        "
+        v-bind:disabled="entry.secret === null"
+        type="password"
+        autocomplete="off"
+        v-on:click.stop
+        v-on:keydown.stop
+        v-on:change="saveCopyPrefix(entry, $event)"
       />
     </div>
     <div
@@ -198,6 +218,22 @@ export default Vue.extend({
       }, 3000);
       return;
     },
+    async saveCopyPrefix(entry: OTPEntry, event: Event) {
+      const input = event.target as HTMLInputElement;
+      const previousPrefix = entry.copyPrefix;
+      const previousEncryptedPrefix = entry.encCopyPrefix;
+      try {
+        entry.setCopyPrefix(input.value, this.$store.state.accounts.encryption);
+        await entry.update();
+      } catch (error) {
+        entry.copyPrefix = previousPrefix;
+        entry.encCopyPrefix = previousEncryptedPrefix;
+        input.value = previousPrefix ?? this.staticPassword ?? "";
+        this.$store.commit("notification/alert", this.i18n.updateFailure);
+        return;
+      }
+      await this.$store.dispatch("accounts/refreshExports");
+    },
     async copyCode(entry: OTPEntry) {
       if (
         this.$store.state.style.style.isEditing ||
@@ -237,7 +273,9 @@ export default Vue.extend({
             }
 
             const lastActiveElement = document.activeElement as HTMLElement;
-            codeClipboard.value = `${this.$store.state.accounts.staticPassword}${entry.code}`;
+            codeClipboard.value = entry.getCopyText(
+              this.$store.state.accounts.staticPassword
+            );
             codeClipboard.focus();
             codeClipboard.select();
             document.execCommand("Copy");

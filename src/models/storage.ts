@@ -178,6 +178,11 @@ export class EntryStorage {
       secret,
     };
 
+    const prefix = encrypted ? entry.encCopyPrefix : entry.copyPrefix;
+    if (prefix !== undefined) {
+      storageItem.copyPrefix = prefix;
+    }
+
     if (entry.pinned) {
       storageItem.pinned = true;
     }
@@ -342,8 +347,16 @@ export class EntryStorage {
             decryptedSecret !== _data[hash].secret &&
             decryptedSecret !== null
           ) {
-            _data[hash].secret = decryptedSecret;
-            _data[hash].encrypted = false;
+            const encryptedPrefix = _data[hash].copyPrefix;
+            const prefix =
+              encryptedPrefix === undefined
+                ? undefined
+                : encryption.getDecryptedString(encryptedPrefix);
+            if (prefix !== null) {
+              _data[hash].secret = decryptedSecret;
+              _data[hash].encrypted = false;
+              _data[hash].copyPrefix = prefix;
+            }
           }
         }
         // we need correct hash
@@ -374,6 +387,12 @@ export class EntryStorage {
 
       data[hash].hash = data[hash].hash || hash;
       data[hash].account = data[hash].account || "";
+      const prefix = data[hash].copyPrefix;
+      if (typeof prefix === "string") {
+        data[hash].copyPrefix = encryption.getEncryptedString(prefix);
+      } else {
+        delete data[hash].copyPrefix;
+      }
       data[hash].encrypted = encryption.getEncryptionStatus();
       data[hash].index = data[hash].index || 0;
       data[hash].issuer = data[hash].issuer || "";
@@ -532,6 +551,7 @@ export class EntryStorage {
 
       const entry = new OTPEntry({
         account: entryData.account,
+        copyPrefix: entryData.copyPrefix,
         encrypted: entryData.encrypted,
         hash: entryData.hash,
         index: entryData.index,

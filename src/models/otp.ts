@@ -50,6 +50,8 @@ export class OTPEntry implements OTPEntryInterface {
   secret: string | null;
   encSecret: string | null;
   account: string;
+  copyPrefix: string | undefined;
+  encCopyPrefix: string | undefined;
   hash: string;
   counter: number;
   period: number;
@@ -61,6 +63,7 @@ export class OTPEntry implements OTPEntryInterface {
   constructor(
     entry: {
       account?: string;
+      copyPrefix?: string;
       encrypted: boolean;
       index: number;
       issuer?: string;
@@ -87,6 +90,12 @@ export class OTPEntry implements OTPEntryInterface {
     } else {
       this.account = "";
     }
+    // Undefined means inherit the legacy global prefix; an empty string
+    // explicitly disables it for this entry.
+    const prefix =
+      typeof entry.copyPrefix === "string" ? entry.copyPrefix : undefined;
+    this.copyPrefix = entry.encrypted ? undefined : prefix;
+    this.encCopyPrefix = entry.encrypted ? prefix : undefined;
     if (entry.encrypted) {
       this.encSecret = entry.secret;
       this.secret = null;
@@ -95,6 +104,9 @@ export class OTPEntry implements OTPEntryInterface {
       this.encSecret = null;
       if (encryption && encryption.getEncryptionStatus()) {
         this.encSecret = encryption.getEncryptedString(this.secret);
+        if (prefix !== undefined) {
+          this.encCopyPrefix = encryption.getEncryptedString(prefix);
+        }
       }
     }
     if (entry.hash) {
@@ -142,6 +154,20 @@ export class OTPEntry implements OTPEntryInterface {
     return;
   }
 
+  getCopyText(defaultPrefix = ""): string {
+    return (this.copyPrefix ?? defaultPrefix) + this.code;
+  }
+
+  setCopyPrefix(prefix: string, encryption: Encryption) {
+    if (!this.secret || (this.encSecret && !encryption.getEncryptionStatus())) {
+      throw new Error("Unlock the entry before changing its copy prefix.");
+    }
+    this.copyPrefix = prefix;
+    this.encCopyPrefix = encryption.getEncryptionStatus()
+      ? encryption.getEncryptedString(prefix)
+      : undefined;
+  }
+
   changeEncryption(encryption: Encryption) {
     if (!this.secret) {
       return;
@@ -149,8 +175,13 @@ export class OTPEntry implements OTPEntryInterface {
 
     if (encryption.getEncryptionStatus()) {
       this.encSecret = encryption.getEncryptedString(this.secret);
+      this.encCopyPrefix =
+        this.copyPrefix === undefined
+          ? undefined
+          : encryption.getEncryptedString(this.copyPrefix);
     } else {
       this.encSecret = null;
+      this.encCopyPrefix = undefined;
     }
     return;
   }
@@ -162,6 +193,17 @@ export class OTPEntry implements OTPEntryInterface {
         hash: this.hash,
         secret,
       });
+      if (this.secret && this.encCopyPrefix !== undefined) {
+        const prefix = encryption.getDecryptedString(this.encCopyPrefix);
+        if (prefix === null) {
+          // Do not expose a partially decrypted entry or overwrite its prefix.
+          this.secret = null;
+          this.copyPrefix = undefined;
+          this.code = CodeState.Encrypted;
+          return;
+        }
+        this.copyPrefix = prefix;
+      }
       if (this.type !== OTPType.hotp && this.type !== OTPType.hhex) {
         this.generate();
       }

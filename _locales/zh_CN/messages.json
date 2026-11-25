@@ -1,4 +1,8 @@
 {
+    "copy_prefix": {
+        "message": "复制前缀（选填）",
+        "description": "Optional per-account prefix for copying the OTP code."
+    },
     "extName": {
         "message": "身份验证器",
         "description": "Extension Name."

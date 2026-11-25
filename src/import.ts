@@ -6,7 +6,7 @@ import { loadI18nMessages } from "./store/i18n";
 import { Encryption } from "./models/encryption";
 import { EntryStorage } from "./models/storage";
 import { getOTPAuthPerLineFromOPTAuthMigration } from "./models/migration";
-import * as CryptoJS from "crypto-js";
+export { decryptBackupData } from "./models/backup-data";
 import * as uuid from "uuid/v4";
 
 async function init() {
@@ -51,42 +51,6 @@ async function getCachedPassphrase() {
   );
 
   return cachedPassphrase;
-}
-
-export function decryptBackupData(
-  backupData: { [hash: string]: OTPStorage },
-  passphrase: string | null
-) {
-  const decryptedbackupData: { [hash: string]: OTPStorage } = {};
-  for (const hash of Object.keys(backupData)) {
-    if (typeof backupData[hash] !== "object") {
-      continue;
-    }
-    if (!backupData[hash].secret) {
-      continue;
-    }
-    if (backupData[hash].encrypted && !passphrase) {
-      continue;
-    }
-    if (backupData[hash].encrypted && passphrase) {
-      try {
-        backupData[hash].secret = CryptoJS.AES.decrypt(
-          backupData[hash].secret,
-          passphrase
-        ).toString(CryptoJS.enc.Utf8);
-        backupData[hash].encrypted = false;
-      } catch (error) {
-        continue;
-      }
-    }
-    // backupData[hash].secret may be empty after decrypt with wrong
-    // passphrase
-    if (!backupData[hash].secret) {
-      continue;
-    }
-    decryptedbackupData[hash] = backupData[hash];
-  }
-  return decryptedbackupData;
 }
 
 export async function getEntryDataFromOTPAuthPerLine(importCode: string) {
