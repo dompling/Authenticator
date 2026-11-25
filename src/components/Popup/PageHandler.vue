@@ -7,7 +7,11 @@
     >
       <IconXCircle />
     </div>
-    <component v-bind:is="info" id="infoContent"></component>
+    <component
+      v-bind:is="info"
+      v-bind:key="viewKey"
+      id="infoContent"
+    ></component>
   </div>
 </template>
 <script lang="ts">
@@ -32,6 +36,12 @@ export default Vue.extend({
   computed: {
     info: function () {
       return this.$store.state.currentView.info;
+    },
+    viewKey(): string {
+      const view = this.$store.state.currentView;
+      return view.info === "SetStaticPasswordPage"
+        ? view.info + view.copyPrefixRevision
+        : view.info;
     },
   },
   methods: {

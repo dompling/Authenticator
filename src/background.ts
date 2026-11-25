@@ -236,7 +236,7 @@ function getBackupToken(service: string) {
         interactive: true,
         scopes: ["https://www.googleapis.com/auth/drive.file"],
       },
-      (value) => {
+      async (value) => {
         const error = chrome.runtime.lastError;
         if (error || !value) {
           chrome.runtime.sendMessage({
@@ -245,8 +245,9 @@ function getBackupToken(service: string) {
           });
           return false;
         }
+        await UserSettings.updateItems();
         UserSettings.items.driveToken = value;
-        UserSettings.commitItems();
+        await UserSettings.commitItems();
         chrome.runtime.sendMessage({ action: "drivetoken", value });
         return true;
       }

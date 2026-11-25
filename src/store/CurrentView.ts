@@ -4,13 +4,15 @@ export class CurrentView implements Module {
       state: {
         info: "",
         copyPrefixEntryHash: "",
+        copyPrefixRevision: 0,
       },
       mutations: {
         setCopyPrefixEntry(
-          state: { copyPrefixEntryHash: string },
+          state: { copyPrefixEntryHash: string; copyPrefixRevision: number },
           hash: string
         ) {
           state.copyPrefixEntryHash = hash;
+          state.copyPrefixRevision++;
         },
         changeView(state: { info: string }, viewName: string) {
           state.info = viewName;
