@@ -46,11 +46,10 @@ The Chrome extension package workflow builds and tests pull requests and feature
 
 ## Google Drive and stable Chrome identity
 
-Google Drive is disabled until a Chrome-extension OAuth client is configured. The upstream client ID does not belong to this fork.
+Since Chrome v7.0.3, this fork includes its own public Chrome OAuth client ID and a fixed extension ID: `aghhgbfijfbebmpcaogdadknmiadiffk`. No client secret is required for Chrome's native identity API. All builds use the same identity by default; the `CHROME_GOOGLE_CLIENT_ID` Actions variable can override the public client ID if needed, provided it is registered for the same extension ID.
 
-1. In Google Cloud Console, enable Google Drive API and configure the OAuth consent screen. For a testing app, add the intended Google accounts as test users.
-2. Create an OAuth client of type **Chrome Extension**, with item ID `aghhgbfijfbebmpcaogdadknmiadiffk`.
-3. In this repository, open Settings > Secrets and variables > Actions > Variables. Set `CHROME_GOOGLE_CLIENT_ID` to your Chrome extension OAuth client ID. A client secret is not required for Chrome's native identity API. The packaging workflow automatically includes the stable public key and OAuth configuration.
-4. Build a new version and load the resulting package. Open Backup > Google Drive and sign in. Set a main encryption password before uploading; Drive uploads only encrypted account records. Existing Drive files can be downloaded from the Google Drive website and imported into Authenticator.
+**Important upgrade from v7.0.2 or earlier:** A fixed extension ID changes the identity of the previous unpacked-path build. Before installing v7.0.3, open the old extension, set an encryption password, and download a full encrypted JSON backup. Keep the old extension installed until the new one has successfully imported and verified all accounts and their static passwords. Do not replace the old installation in place.
 
-To use only cross-device Chrome Sync, set the repository variable `CHROME_STABLE_ID` to `true`. Without either variable, the build retains its existing unpacked-path ID for in-place updates. Enabling the fixed ID changes the extension identity, so **export a full encrypted JSON backup first, keep the old extension installed, install the fixed-ID extension, and import/verify the backup before removing the old extension**. Changing configuration requires building a new version for Releases; workflow artifacts are also available for testing.
+For Google Drive backup, enable Google Drive API in the Google Cloud project and configure the OAuth consent screen. If the project is in testing mode, add the intended Google account as a test user. Open Backup > Google Drive > Sign in and approve access. Set a main encryption password before uploading; Drive uploads only encrypted account records. The extension uses the limited `drive.file` scope. Existing Drive backups can be downloaded from the Google Drive website and imported into Authenticator.
+
+For cross-device Chrome Sync, install the same fixed-ID build on both devices, sign into the same Chrome account, and enable Browser Sync in Authenticator preferences. Keep an encrypted JSON backup independently of Chrome Sync.

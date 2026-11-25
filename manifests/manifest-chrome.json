@@ -2,7 +2,7 @@
     "manifest_version": 3,
     "name": "__MSG_extName__",
     "short_name": "__MSG_extShortName__",
-    "version": "7.0.2",
+    "version": "7.0.3",
     "default_locale": "en",
     "description": "__MSG_extDesc__",
     "icons": {
@@ -64,5 +64,12 @@
     "content_security_policy": {
         "extension_pages": "script-src 'self'; font-src 'self'; img-src 'self' data:; style-src 'self' 'unsafe-inline'; connect-src https://www.google.com/ https://*.dropboxapi.com https://www.googleapis.com/ https://accounts.google.com/o/oauth2/revoke https://login.microsoftonline.com/common/oauth2/v2.0/token https://graph.microsoft.com/; default-src 'none'",
         "sandbox": "sandbox allow-scripts; script-src 'self' 'unsafe-eval';"
+    },
+    "key": "MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEApUxaYiEIScB7/9JOdmn+XDBT3xW65Bg76SYx5p6YgCmAUyeOBqBYQh49S7TAMp2m6afd8PqiAyLkQlCM3VCi0I2ApXLUR30+zlDpzPr/sI7CrfjQRHOd0gbTtkMqpKvJ7jjYs9FhDQveTN1sg7oy0QlLJ92Qcpfn6aQ2DkNoTcAGRHt+tkQkiD8PA5XlXoSHzuYuT2DtLnyTABPjQtbUkKbbYLQyGEi5JX0yzOXkr6I/cFKS4OI/O7aAzITxfuYS5Izf9L2wHsoq9GNK+/fRI7b4QdVls8Dd1CWE/EykQuSpo3nKwANbtJwyB480w1SRc62g9QGd5qXJY/GrCNkfHQIDAQAB",
+    "oauth2": {
+        "client_id": "1033783170130-ktq8qjs0vc0dnm0qvvmhh4osb6ktfmvk.apps.googleusercontent.com",
+        "scopes": [
+            "https://www.googleapis.com/auth/drive.file"
+        ]
     }
-  }
+}
