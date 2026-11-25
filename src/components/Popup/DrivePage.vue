@@ -204,7 +204,10 @@ export default Vue.extend({
       if (data instanceof Error) {
         throw data;
       }
-      return data;
+      if (!data || typeof data !== "object") {
+        throw new Error("Unable to read local accounts");
+      }
+      return data as { [hash: string]: OTPStorage };
     },
     async loadBackups() {
       if (this.busy) {
@@ -272,9 +275,13 @@ export default Vue.extend({
       this.busy = true;
       this.errorMessage = "";
       try {
+        const incoming = this.restoreData;
         // Re-read immediately before committing; don't overwrite local changes.
         const local = await this.readLocalEntries();
-        const plan = planCloudRestore(this.restoreData, local);
+        if (!this.visible || !this.previewReady || this.restoreData !== incoming) {
+          return;
+        }
+        const plan = planCloudRestore(incoming, local);
         const confirmed = new Set(this.preview.map((item) => item.hash));
         for (const hash of Object.keys(plan.additions)) {
           if (!confirmed.has(hash)) {

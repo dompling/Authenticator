@@ -350,6 +350,7 @@ export class Drive implements BackupProvider {
     if (result.id) {
       await UserSettings.updateItems();
       UserSettings.items.driveLastBackupTime = Date.now();
+      UserSettings.items.driveLastBackupError = undefined;
       await UserSettings.commitItems();
     }
     return Boolean(result.id);
