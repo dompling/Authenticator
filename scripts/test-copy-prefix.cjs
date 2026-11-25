@@ -138,3 +138,76 @@ test("Drive API displays 403 rather than hanging and loads account through v3", 
     UserSettings.items = originalItems;
   }
 });
+
+test("cloud history reads all matching folders and sorts snapshots newest first", async () => {
+  const { Drive } = require("../src/models/backup.ts");
+  const { UserSettings } = require("../src/models/settings.ts");
+  const originalFetch = global.fetch;
+  const originalUpdate = UserSettings.updateItems;
+  const originalItems = UserSettings.items;
+  UserSettings.items = { driveToken: "test-token" };
+  UserSettings.updateItems = async () => {};
+  try {
+    global.fetch = async (url, options) => {
+      assert.equal(options.headers.Authorization, "Bearer test-token");
+      const parsed = new URL(url);
+      const q = parsed.searchParams.get("q");
+      let result;
+      if (parsed.searchParams.get("alt") === "media") {
+        result = { sample: "backup" };
+      } else if (q.includes("mimeType")) {
+        result = { files: [{ id: "folder1" }, { id: "folder2" }] };
+      } else if (q.includes("folder1")) {
+        result = parsed.searchParams.get("pageToken")
+          ? { files: [{ id: "older", name: "older.json", modifiedTime: "2025-01-01" }] }
+          : { nextPageToken: "next", files: [{ id: "old", name: "old.json", modifiedTime: "2026-01-01" }] };
+      } else {
+        result = { files: [{ id: "new", name: "new.json", modifiedTime: "2026-11-01" }, { id: "ignore", name: "notes.txt" }] };
+      }
+      return new Response(JSON.stringify(result), { status: 200 });
+    };
+    assert.deepEqual((await new Drive().listBackups()).map((file) => file.id), ["new", "old", "older"]);
+    assert.deepEqual(await new Drive().downloadBackup("new"), { sample: "backup" });
+    await assert.rejects(new Drive().downloadBackup("../bad"), /Invalid backup file ID/);
+  } finally {
+    global.fetch = originalFetch;
+    UserSettings.updateItems = originalUpdate;
+    UserSettings.items = originalItems;
+  }
+});
+
+test("cloud restore verifies the entire encrypted snapshot and never overwrites local records", async () => {
+  const CryptoJS = require("crypto-js");
+  const { decodeCloudBackup, planCloudRestore } = require("../src/models/backup-data.ts");
+  const dataKey = CryptoJS.lib.WordArray.random(120);
+  const source = new Encryption(dataKey.toString());
+  const first = makeEntry("cloud-old-", source);
+  first.account = "existing";
+  const second = makeEntry("cloud-new-", source);
+  second.account = "new";
+  const encrypted = EntryStorage.getExport([first, second], true);
+  const snapshot = { ...encrypted, key: { enc: CryptoJS.AES.encrypt(dataKey, "master-password").toString(), hash: "test" } };
+  assert.throws(() => decodeCloudBackup(snapshot, "wrong-password"));
+  const corrupt = JSON.parse(JSON.stringify(snapshot));
+  corrupt[second.hash].secret = "broken";
+  assert.throws(() => decodeCloudBackup(corrupt, "master-password"));
+  const decoded = decodeCloudBackup(snapshot, "master-password");
+  assert.equal(decoded[second.hash].copyPrefix, "cloud-new-");
+  const localKey = new Encryption("local-key");
+  const existing = new OTPEntry({ type: OTPType.hotp, encrypted: false, index: 0, hash: first.hash, secret, account: "existing", copyPrefix: "local-" }, localKey);
+  existing.code = "012345";
+  let stored = EntryStorage.getExport([existing], true);
+  const oldRecord = JSON.stringify(stored[first.hash]);
+  BrowserStorage.get = async () => JSON.parse(JSON.stringify(stored));
+  BrowserStorage.set = async (data) => { stored = { ...stored, ...data }; };
+  const duplicate = { ...decoded[first.hash], hash: "other-id" };
+  const local = EntryStorage.getExport([existing]);
+  const plan = planCloudRestore({ ...decoded, "other-id": duplicate }, local);
+  assert.equal(plan.skipped, 2);
+  assert.deepEqual(Object.keys(plan.additions), [second.hash]);
+  assert.equal(await EntryStorage.import(localKey, plan.additions, true), 1);
+  assert.equal(JSON.stringify(stored[first.hash]), oldRecord);
+  assert.equal(localKey.getDecryptedString(stored[second.hash].copyPrefix), "cloud-new-");
+  assert.equal(await EntryStorage.import(localKey, { [first.hash]: decoded[first.hash] }, true), 0);
+  assert.equal(JSON.stringify(stored[first.hash]), oldRecord);
+});

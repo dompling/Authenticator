@@ -414,10 +414,22 @@ export class EntryStorage {
 
   static async import(
     encryption: Encryption,
-    data: { [hash: string]: OTPStorage }
+    data: { [hash: string]: OTPStorage },
+    preserveExisting = false
   ) {
     let _data = await BrowserStorage.get();
+    const newEntries: { [hash: string]: OTPStorage } = {};
+    let nextIndex = Object.keys(_data).reduce(
+      (max, hash) => Math.max(max, Number(_data[hash]?.index) || 0),
+      -1
+    ) + 1;
     for (const hash of Object.keys(data)) {
+      if (
+        preserveExisting &&
+        Object.prototype.hasOwnProperty.call(_data, hash)
+      ) {
+        continue;
+      }
       // never trust data import from user
       // we do not support encrypted data import any longer
       if (!data[hash].secret || data[hash].encrypted) {
@@ -432,7 +444,9 @@ export class EntryStorage {
         typeof prefix === "string" ? prefix : ""
       );
       data[hash].encrypted = encryption.getEncryptionStatus();
-      data[hash].index = data[hash].index || 0;
+      data[hash].index = preserveExisting
+        ? nextIndex++
+        : data[hash].index || 0;
       data[hash].issuer = data[hash].issuer || "";
       data[hash].type = data[hash].type || OTPType[OTPType.totp];
       data[hash].counter = data[hash].counter || 0;
@@ -507,13 +521,23 @@ export class EntryStorage {
 
         data[_hash].secret = encryption.getEncryptedString(data[_hash].secret);
         _data[_hash] = data[_hash];
+        newEntries[_hash] = data[_hash];
       } else {
         data[hash].secret = encryption.getEncryptedString(data[hash].secret);
         _data[hash] = data[hash];
+        newEntries[hash] = data[hash];
       }
     }
-    _data = this.ensureUniqueIndex(_data);
-    await BrowserStorage.set(_data);
+    if (preserveExisting) {
+      // Cloud merge writes only additions; existing records are not rewritten.
+      if (Object.keys(newEntries).length) {
+        await BrowserStorage.set(newEntries);
+      }
+    } else {
+      _data = this.ensureUniqueIndex(_data);
+      await BrowserStorage.set(_data);
+    }
+    return Object.keys(newEntries).length;
   }
 
   static async add(entry: OTPEntry) {

@@ -546,5 +546,53 @@
     "drive_require_password": {
         "message": "Set an encryption password in Security before uploading an encrypted backup to Google Drive.",
         "description": "Per-account static password and backup settings."
+    },
+    "drive_history": {
+        "message": "History / restore from Google Drive",
+        "description": "Google Drive backup and restore."
+    },
+    "drive_auto_backup": {
+        "message": "Daily automatic backup",
+        "description": "Google Drive backup and restore."
+    },
+    "drive_auto_help": {
+        "message": "Off by default. Backs up when due while Chrome is running and unlocked.",
+        "description": "Google Drive backup and restore."
+    },
+    "drive_last_backup": {
+        "message": "Last successful backup",
+        "description": "Google Drive backup and restore."
+    },
+    "drive_no_backups": {
+        "message": "No cloud backups found.",
+        "description": "Google Drive backup and restore."
+    },
+    "drive_backup_password": {
+        "message": "Backup encryption password",
+        "description": "Google Drive backup and restore."
+    },
+    "drive_preview": {
+        "message": "Verify password and preview",
+        "description": "Google Drive backup and restore."
+    },
+    "drive_restore_new": {
+        "message": "New accounts",
+        "description": "Google Drive backup and restore."
+    },
+    "drive_restore_skip": {
+        "message": "Existing or duplicate accounts skipped",
+        "description": "Google Drive backup and restore."
+    },
+    "drive_restore_require_password": {
+        "message": "Set and unlock a local main encryption password first, then return here to restore. It may differ from the backup password.",
+        "description": "Google Drive backup and restore."
+    },
+    "drive_restore_confirm": {
+        "message": "Merge and restore accounts",
+        "description": "Google Drive backup and restore."
+    },
+    "drive_restore_done": {
+        "message": "Accounts restored",
+        "description": "Google Drive backup and restore."
     }
 }

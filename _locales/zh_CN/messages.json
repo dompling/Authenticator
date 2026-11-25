@@ -546,5 +546,53 @@
     "drive_require_password": {
         "message": "请先在安全设置中设置加密主密码，再上传加密备份到 Google Drive。",
         "description": "Per-account static password and backup settings."
+    },
+    "drive_history": {
+        "message": "历史备份 / 从云端恢复",
+        "description": "Google Drive backup and restore."
+    },
+    "drive_auto_backup": {
+        "message": "每天自动备份",
+        "description": "Google Drive backup and restore."
+    },
+    "drive_auto_help": {
+        "message": "默认关闭。Chrome 运行且插件已解锁时，检查并执行到期备份。",
+        "description": "Google Drive backup and restore."
+    },
+    "drive_last_backup": {
+        "message": "上次成功备份",
+        "description": "Google Drive backup and restore."
+    },
+    "drive_no_backups": {
+        "message": "未找到云端备份。",
+        "description": "Google Drive backup and restore."
+    },
+    "drive_backup_password": {
+        "message": "备份加密密码",
+        "description": "Google Drive backup and restore."
+    },
+    "drive_preview": {
+        "message": "验证密码并预览",
+        "description": "Google Drive backup and restore."
+    },
+    "drive_restore_new": {
+        "message": "新增账号",
+        "description": "Google Drive backup and restore."
+    },
+    "drive_restore_skip": {
+        "message": "跳过已有或重复账号",
+        "description": "Google Drive backup and restore."
+    },
+    "drive_restore_require_password": {
+        "message": "请先设置并解锁本机加密主密码，再返回恢复。本机密码可以与备份密码不同。",
+        "description": "Google Drive backup and restore."
+    },
+    "drive_restore_confirm": {
+        "message": "合并恢复账号",
+        "description": "Google Drive backup and restore."
+    },
+    "drive_restore_done": {
+        "message": "已恢复账号数",
+        "description": "Google Drive backup and restore."
     }
 }

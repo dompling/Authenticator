@@ -17,7 +17,7 @@ import { Menu } from "./store/Menu";
 import { Notification } from "./store/Notification";
 import { Qr } from "./store/Qr";
 import { Advisor } from "./store/Advisor";
-import { Dropbox, Drive, OneDrive } from "./models/backup";
+import { Dropbox, OneDrive } from "./models/backup";
 import { syncTimeWithGoogle } from "./syncTime";
 import { StorageLocation, UserSettings } from "./models/settings";
 
@@ -238,46 +238,6 @@ async function runScheduledBackup(clientTime: number, instance: Vue) {
       }
     );
   }
-  if (instance.$store.state.backup.driveToken) {
-    chrome.permissions.contains(
-      {
-        origins: [
-          "https://www.googleapis.com/*",
-          "https://accounts.google.com/o/oauth2/revoke",
-        ],
-      },
-      async (hasPermission) => {
-        if (hasPermission) {
-          try {
-            const drive = new Drive();
-            const res = await drive.upload(
-              instance.$store.state.accounts.encryption
-            );
-            if (res) {
-              UserSettings.items.lastRemindingBackupTime = clientTime;
-              UserSettings.commitItems();
-              return;
-            } else if (UserSettings.items.driveRevoked === true) {
-              instance.$store.commit(
-                "notification/alert",
-                chrome.i18n.getMessage("token_revoked", ["Google Drive"])
-              );
-              UserSettings.items.driveRevoked = undefined;
-              UserSettings.removeItem("driveRevoked");
-            }
-          } catch (error) {
-            // ignore
-          }
-        }
-        instance.$store.commit(
-          "notification/alert",
-          instance.i18n.remind_backup
-        );
-        UserSettings.items.lastRemindingBackupTime = clientTime;
-        UserSettings.commitItems();
-      }
-    );
-  }
   if (instance.$store.state.backup.oneDriveToken) {
     chrome.permissions.contains(
       {
@@ -319,7 +279,10 @@ async function runScheduledBackup(clientTime: number, instance: Vue) {
     );
   }
   if (
-    !instance.$store.state.backup.driveToken &&
+    !(
+      instance.$store.state.backup.driveToken &&
+      UserSettings.items.driveAutoBackup
+    ) &&
     !instance.$store.state.backup.dropboxToken &&
     !instance.$store.state.backup.oneDriveToken
   ) {

@@ -12,6 +12,64 @@ import { UserSettings } from "./models/settings";
 
 let contentTab: chrome.tabs.Tab | undefined;
 
+const driveBackupAlarm = "drive-auto-backup";
+let driveBackupRunning = false;
+
+async function ensureDriveBackupAlarm() {
+  if (!(await chrome.alarms.get(driveBackupAlarm))) {
+    chrome.alarms.create(driveBackupAlarm, { periodInMinutes: 60 });
+  }
+}
+
+async function runDriveAutoBackup() {
+  if (driveBackupRunning) {
+    return;
+  }
+  driveBackupRunning = true;
+  try {
+    await UserSettings.updateItems();
+    if (
+      !UserSettings.items.driveAutoBackup ||
+      !UserSettings.items.driveToken ||
+      Date.now() - (UserSettings.items.driveLastBackupTime || 0) < 86400000
+    ) {
+      return;
+    }
+    const { cachedPassphrase } = await chrome.storage.session.get(
+      "cachedPassphrase"
+    );
+    if (!cachedPassphrase) {
+      return;
+    }
+    const entries = await EntryStorage.get();
+    if (!entries.length) {
+      return;
+    }
+    if (!(await new Drive().upload(new Encryption(cachedPassphrase)))) {
+      throw new Error("Google Drive upload failed");
+    }
+    await UserSettings.updateItems();
+    UserSettings.items.driveLastBackupError = undefined;
+    await UserSettings.commitItems();
+  } catch (error) {
+    await UserSettings.updateItems();
+    UserSettings.items.driveLastBackupError =
+      error instanceof Error ? error.message : String(error);
+    await UserSettings.commitItems();
+  } finally {
+    driveBackupRunning = false;
+  }
+}
+
+chrome.runtime.onStartup.addListener(() => {
+  ensureDriveBackupAlarm().catch(console.error);
+});
+chrome.runtime.onInstalled.addListener(() => {
+  ensureDriveBackupAlarm().catch(console.error);
+});
+ensureDriveBackupAlarm().catch(console.error);
+
+
 chrome.runtime.onMessage.addListener(async (message, sender) => {
   await UserSettings.updateItems();
 
@@ -30,9 +88,10 @@ chrome.runtime.onMessage.addListener(async (message, sender) => {
   } else if (message.action === "getTotp") {
     getTotp(message.info);
   } else if (message.action === "cachePassphrase") {
-    chrome.storage.session.set({ cachedPassphrase: message.value });
+    await chrome.storage.session.set({ cachedPassphrase: message.value });
     chrome.alarms.clear("autolock");
     setAutolock();
+    runDriveAutoBackup().catch(console.error);
   } else if (["dropbox", "drive", "onedrive"].indexOf(message.action) > -1) {
     getBackupToken(message.action);
   } else if (message.action === "lock") {
@@ -50,7 +109,14 @@ chrome.runtime.onMessage.addListener(async (message, sender) => {
   return true;
 });
 
-chrome.alarms.onAlarm.addListener(() => {
+chrome.alarms.onAlarm.addListener((alarm) => {
+  if (alarm.name === driveBackupAlarm) {
+    runDriveAutoBackup().catch(console.error);
+    return;
+  }
+  if (alarm.name !== "autolock") {
+    return;
+  }
   chrome.storage.session.set({ cachedPassphrase: null });
   if (contentTab && contentTab.id) {
     chrome.tabs.sendMessage(contentTab.id, { action: "stopCapture" });

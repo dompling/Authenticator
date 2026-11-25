@@ -160,6 +160,12 @@ async function driveFetch(url: string, options: RequestInit = {}) {
   }
 }
 
+export interface DriveBackupFile {
+  id: string;
+  name: string;
+  modifiedTime: string;
+}
+
 export class Drive implements BackupProvider {
   private get nativeChrome() {
     const agent = navigator.userAgent;
@@ -197,12 +203,11 @@ export class Drive implements BackupProvider {
       });
     } else if (UserSettings.items.driveRefreshToken) {
       const credentials = getCredentials().drive;
-      const body = new URLSearchParams({
-        client_id: credentials.client_id,
-        client_secret: credentials.client_secret,
-        refresh_token: UserSettings.items.driveRefreshToken,
-        grant_type: "refresh_token",
-      });
+      const body = new URLSearchParams();
+      body.set("client_id", credentials.client_id);
+      body.set("client_secret", credentials.client_secret);
+      body.set("refresh_token", UserSettings.items.driveRefreshToken);
+      body.set("grant_type", "refresh_token");
       const result = await driveFetch(
         "https://www.googleapis.com/oauth2/v4/token",
         {
@@ -342,7 +347,68 @@ export class Drive implements BackupProvider {
         body,
       }
     );
+    if (result.id) {
+      await UserSettings.updateItems();
+      UserSettings.items.driveLastBackupTime = Date.now();
+      await UserSettings.commitItems();
+    }
     return Boolean(result.id);
+  }
+
+  private async listFiles(query: string, fields: string) {
+    const files: DriveBackupFile[] = [];
+    let pageToken: string | undefined;
+    do {
+      const params = new URLSearchParams({
+        q: query,
+        fields: "nextPageToken,files(" + fields + ")",
+        pageSize: "100",
+      });
+      if (pageToken) {
+        params.set("pageToken", pageToken);
+      }
+      const result = await this.request(
+        "/drive/v3/files?" + params.toString()
+      );
+      files.push(...(result.files || []));
+      pageToken = result.nextPageToken;
+    } while (pageToken);
+    return files;
+  }
+
+  async listBackups(): Promise<DriveBackupFile[]> {
+    // Reading history never creates folders or uploads anything.
+    const folders = await this.listFiles(
+      "name = 'Authenticator Backups' and mimeType = 'application/vnd.google-apps.folder' and trashed = false",
+      "id"
+    );
+    const files: DriveBackupFile[] = [];
+    for (const folder of folders) {
+      if (!/^[a-zA-Z0-9_-]+$/.test(folder.id)) {
+        continue;
+      }
+      const results = await this.listFiles(
+        "'" + folder.id + "' in parents and trashed = false",
+        "id,name,modifiedTime"
+      );
+      files.push(
+        ...results.filter((file) => /\.json$/i.test(file.name))
+      );
+    }
+    return files.sort(
+      (a, b) =>
+        new Date(b.modifiedTime).getTime() -
+        new Date(a.modifiedTime).getTime()
+    );
+  }
+
+  async downloadBackup(fileId: string): Promise<unknown> {
+    if (!/^[a-zA-Z0-9_-]+$/.test(fileId)) {
+      throw new Error("Invalid backup file ID");
+    }
+    return this.request(
+      "/drive/v3/files/" + encodeURIComponent(fileId) + "?alt=media"
+    );
   }
 
   async getUser(): Promise<string> {
@@ -378,6 +444,9 @@ export class Drive implements BackupProvider {
     UserSettings.items.driveRefreshToken = undefined;
     UserSettings.items.driveFolder = undefined;
     UserSettings.items.driveRevoked = false;
+    UserSettings.items.driveAutoBackup = false;
+    UserSettings.items.driveLastBackupTime = undefined;
+    UserSettings.items.driveLastBackupError = undefined;
     await UserSettings.commitItems();
   }
 }

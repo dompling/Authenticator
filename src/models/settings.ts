@@ -6,6 +6,9 @@ export enum StorageLocation {
 interface UserSettingsData {
   // local settings
   driveEncrypted?: boolean;
+  driveAutoBackup?: boolean;
+  driveLastBackupTime?: number;
+  driveLastBackupError?: string;
   driveFolder?: string;
   driveRefreshToken?: string;
   driveRevoked?: boolean;
@@ -37,6 +40,9 @@ interface UserSettingsData {
 // Maybe we can have a better way to define this
 const LocalUserSettingsDataKeys = [
   "driveEncrypted",
+  "driveAutoBackup",
+  "driveLastBackupTime",
+  "driveLastBackupError",
   "driveFolder",
   "driveRefreshToken",
   "driveRevoked",
