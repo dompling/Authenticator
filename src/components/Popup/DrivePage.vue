@@ -30,6 +30,23 @@
     >
       {{ i18n.manual_dropbox }}
     </a-button>
+    <div v-if="backupToken && !busy" class="text drive-latest">
+      <strong>{{ i18n.drive_latest_file }}</strong>
+      <template v-if="latestFile">
+        <div style="overflow-wrap: anywhere">{{ latestFile.name }}</div>
+        <div>{{ formatDate(latestFile.createdTime || latestFile.modifiedTime) }}</div>
+        <div v-if="latestFile.size">{{ formatSize(latestFile.size) }}</div>
+        <a-button @click="openLatestFile()">
+          {{ i18n.drive_open_latest }}
+        </a-button>
+        <a-button @click="restoreLatestFile()">
+          {{ i18n.drive_restore_latest }}
+        </a-button>
+      </template>
+      <div v-else-if="historyLoaded">{{ i18n.drive_no_backups }}</div>
+      <div v-else-if="historyError" class="warning">{{ historyError }}</div>
+      <a-button @click="refreshLatest()">{{ i18n.drive_refresh_files }}</a-button>
+    </div>
     <a-button v-if="backupToken && !busy" @click="loadBackups()">
       {{ i18n.drive_history }}
     </a-button>
@@ -40,14 +57,16 @@
         @change="saveAutoBackup()"
       />
       <div class="text">{{ i18n.drive_auto_help }}</div>
-      <div class="text" v-if="lastBackup">{{ i18n.drive_last_backup }}: {{ lastBackup }}</div>
+      <div class="text" v-if="lastBackup && !latestFile && !historyLoaded">
+        {{ i18n.drive_last_local_backup }}: {{ lastBackup }}
+      </div>
       <div class="text warning" v-if="autoError">{{ autoError }}</div>
     </div>
     <div v-if="historyOpen && backupToken && !busy">
       <div class="text" v-if="!files.length">{{ i18n.drive_no_backups }}</div>
       <div v-for="file in files" :key="file.id">
         <a-button @click="selectBackup(file)">
-          {{ formatDate(file.modifiedTime) }}
+          {{ formatDate(file.createdTime || file.modifiedTime) }}
         </a-button>
         <div class="text" style="overflow-wrap: break-word">{{ file.name }}</div>
       </div>
@@ -102,6 +121,8 @@ export default Vue.extend({
       errorMessage: "",
       busy: false,
       files: [] as DriveBackupFile[],
+      historyLoaded: false,
+      historyError: "",
       historyOpen: false,
       selectedFile: null as DriveBackupFile | null,
       restorePassword: "",
@@ -126,6 +147,8 @@ export default Vue.extend({
       if (!value) {
         this.clearRestore();
         this.historyOpen = false;
+      } else if (this.backupToken && !this.busy) {
+        this.refreshLatest();
       }
     },
   },
@@ -145,6 +168,9 @@ export default Vue.extend({
     },
     backupToken(): boolean {
       return this.$store.state.backup.driveToken;
+    },
+    latestFile(): DriveBackupFile | null {
+      return this.historyLoaded ? this.files[0] || null : null;
     },
     retryLabel(): string {
       const language = chrome.i18n.getUILanguage();
@@ -176,6 +202,58 @@ export default Vue.extend({
     },
     formatDate(value: string): string {
       return new Date(value).toLocaleString();
+    },
+    formatSize(value: string): string {
+      const bytes = Number(value);
+      if (!Number.isFinite(bytes) || bytes < 0) {
+        return "";
+      }
+      return bytes < 1024
+        ? bytes + " B"
+        : (bytes / 1024).toFixed(1) + " KB";
+    },
+    openLatestFile() {
+      const file = this.latestFile;
+      if (file && /^[a-zA-Z0-9_-]+$/.test(file.id)) {
+        chrome.tabs.create({
+          url: "https://drive.google.com/file/d/" + file.id + "/view",
+        });
+      }
+    },
+    restoreLatestFile() {
+      const file = this.latestFile;
+      if (file) {
+        this.selectBackup(file);
+      }
+    },
+    async refreshBackupFiles() {
+      this.historyLoaded = false;
+      this.historyError = "";
+      this.files = [];
+      try {
+        this.files = await new Drive().listBackups();
+        this.historyLoaded = true;
+        return true;
+      } catch (error) {
+        this.historyError =
+          error instanceof Error ? error.message : String(error);
+        if (UserSettings.items.driveRevoked) {
+          this.showError(error);
+        }
+        return false;
+      }
+    },
+    async refreshLatest() {
+      if (this.busy || !this.backupToken) {
+        return;
+      }
+      this.busy = true;
+      try {
+        await this.refreshBackupFiles();
+        await this.readAutoBackup();
+      } finally {
+        this.busy = false;
+      }
     },
     clearRestore() {
       this.selectedFile = null;
@@ -217,8 +295,7 @@ export default Vue.extend({
       this.errorMessage = "";
       this.clearRestore();
       try {
-        this.files = await new Drive().listBackups();
-        this.historyOpen = true;
+        this.historyOpen = await this.refreshBackupFiles();
       } catch (error) {
         this.showError(error);
       } finally {
@@ -335,6 +412,7 @@ export default Vue.extend({
       this.errorMessage = "";
       try {
         this.email = await new Drive().getUser();
+        await this.refreshBackupFiles();
       } catch (error) {
         this.email = "";
         this.showError(error);
@@ -351,6 +429,9 @@ export default Vue.extend({
       try {
         await new Drive().logout();
         this.clearRestore();
+        this.files = [];
+        this.historyLoaded = false;
+        this.historyError = "";
         this.historyOpen = false;
         await this.readAutoBackup();
         this.$store.commit("backup/setToken", { service, value: false });
@@ -370,6 +451,7 @@ export default Vue.extend({
       try {
         if (await new Drive().upload(this.$store.state.accounts.encryption)) {
           await this.readAutoBackup();
+          await this.refreshBackupFiles();
           this.$store.commit("notification/alert", this.i18n.updateSuccess);
         } else {
           this.errorMessage = this.i18n.updateFailure;

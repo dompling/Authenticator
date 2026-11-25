@@ -164,6 +164,8 @@ export interface DriveBackupFile {
   id: string;
   name: string;
   modifiedTime: string;
+  createdTime?: string;
+  size?: string;
 }
 
 export class Drive implements BackupProvider {
@@ -390,7 +392,7 @@ export class Drive implements BackupProvider {
       }
       const results = await this.listFiles(
         "'" + folder.id + "' in parents and trashed = false",
-        "id,name,modifiedTime"
+        "id,name,createdTime,modifiedTime,size"
       );
       files.push(
         ...results.filter((file) => /\.json$/i.test(file.name))
@@ -398,8 +400,8 @@ export class Drive implements BackupProvider {
     }
     return files.sort(
       (a, b) =>
-        new Date(b.modifiedTime).getTime() -
-        new Date(a.modifiedTime).getTime()
+        new Date(b.createdTime || b.modifiedTime).getTime() -
+        new Date(a.createdTime || a.modifiedTime).getTime()
     );
   }
 

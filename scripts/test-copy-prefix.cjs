@@ -211,3 +211,39 @@ test("cloud restore verifies the entire encrypted snapshot and never overwrites 
   assert.equal(await EntryStorage.import(localKey, { [first.hash]: decoded[first.hash] }, true), 0);
   assert.equal(JSON.stringify(stored[first.hash]), oldRecord);
 });
+
+test("latest cloud backup reflects file creation time rather than later edits", async () => {
+  const { Drive } = require("../src/models/backup.ts");
+  const { UserSettings } = require("../src/models/settings.ts");
+  const originalFetch = global.fetch;
+  const originalUpdate = UserSettings.updateItems;
+  const originalItems = UserSettings.items;
+  UserSettings.items = { driveToken: "test-token" };
+  UserSettings.updateItems = async () => {};
+  try {
+    global.fetch = async (url, options) => {
+      assert.equal(options.method, undefined);
+      const parsed = new URL(url);
+      const query = parsed.searchParams.get("q");
+      const fields = parsed.searchParams.get("fields");
+      const files = query.includes("mimeType")
+        ? [{ id: "folder1" }]
+        : [
+          { id: "older", name: "old.json", createdTime: "2026-10-01", modifiedTime: "2026-11-25", size: "100" },
+          { id: "latest", name: "latest.json", createdTime: "2026-11-24", modifiedTime: "2026-11-24", size: "2048" },
+        ];
+      if (!query.includes("mimeType")) {
+        assert.match(fields, /createdTime/);
+        assert.match(fields, /size/);
+      }
+      return new Response(JSON.stringify({ files }), { status: 200 });
+    };
+    const backups = await new Drive().listBackups();
+    assert.equal(backups[0].id, "latest");
+    assert.equal(backups[0].size, "2048");
+  } finally {
+    global.fetch = originalFetch;
+    UserSettings.updateItems = originalUpdate;
+    UserSettings.items = originalItems;
+  }
+});

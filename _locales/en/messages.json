@@ -594,5 +594,25 @@
     "drive_restore_done": {
         "message": "Accounts restored",
         "description": "Google Drive backup and restore."
+    },
+    "drive_latest_file": {
+        "message": "Latest cloud backup",
+        "description": "Latest Google Drive backup."
+    },
+    "drive_open_latest": {
+        "message": "Open backup file",
+        "description": "Latest Google Drive backup."
+    },
+    "drive_restore_latest": {
+        "message": "Restore latest backup",
+        "description": "Latest Google Drive backup."
+    },
+    "drive_refresh_files": {
+        "message": "Refresh backup files",
+        "description": "Latest Google Drive backup."
+    },
+    "drive_last_local_backup": {
+        "message": "Last backup recorded on this device",
+        "description": "Latest Google Drive backup."
     }
 }

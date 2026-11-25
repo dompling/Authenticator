@@ -594,5 +594,25 @@
     "drive_restore_done": {
         "message": "已復原帳號數",
         "description": "Google Drive backup and restore."
+    },
+    "drive_latest_file": {
+        "message": "最新雲端備份",
+        "description": "Latest Google Drive backup."
+    },
+    "drive_open_latest": {
+        "message": "檢視備份檔案",
+        "description": "Latest Google Drive backup."
+    },
+    "drive_restore_latest": {
+        "message": "復原最新備份",
+        "description": "Latest Google Drive backup."
+    },
+    "drive_refresh_files": {
+        "message": "重新整理備份檔案",
+        "description": "Latest Google Drive backup."
+    },
+    "drive_last_local_backup": {
+        "message": "本機記錄的上次備份",
+        "description": "Latest Google Drive backup."
     }
 }

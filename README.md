@@ -57,3 +57,7 @@ For cross-device Chrome Sync, install the same fixed-ID build on both devices, s
 ### Restore from Google Drive (7.0.5)
 
 Open Backup > Google Drive > History / restore. Select a snapshot, enter the backup encryption password, preview additions and duplicates, then confirm. Set and unlock a local main encryption password first; the source backup password and local password may differ. Existing records are preserved and duplicate UUIDs or matching account credentials are skipped. Every source record must decrypt and validate before importing. Standard OTP exports do not carry static passwords, but complete Drive snapshots do. Enable daily automatic backup separately; it checks hourly while Chrome is running, runs when due and unlocked, and never uploads plaintext. Auto backup is off by default. A failed backup is reported in the Drive page and retried at the next check. Google Drive remains a snapshot backup, not bidirectional real-time synchronization.
+
+### Latest cloud backup (7.0.6)
+
+The Google Drive page fetches the latest accessible backup from Drive on opening and after a successful manual backup. It displays the actual cloud filename, creation time (local time zone), and size, with shortcuts to open the file in Google Drive or restore it using the existing password and preview flow. Refresh checks the cloud again; it never creates a folder or uploads data. A local backup timestamp is labeled separately when cloud metadata is unavailable.
